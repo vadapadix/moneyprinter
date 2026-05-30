@@ -7,8 +7,17 @@ from loguru import logger
 
 from app.config import config
 from app.models import const
-from app.models.schema import VideoConcatMode, VideoParams
-from app.services import llm, material, subtitle, video, voice, upload_post
+from app.models.schema import PublishPrivacy, VideoConcatMode, VideoParams
+from app.services import (
+    llm,
+    material,
+    social_metadata,
+    social_publisher,
+    subtitle,
+    video,
+    voice,
+    youtube_oauth,
+)
 from app.services import state as sm
 from app.utils import utils
 
@@ -353,20 +362,74 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         f"task {task_id} finished, generated {len(final_video_paths)} videos."
     )
 
-    # 7. Cross-post to TikTok/Instagram (if enabled)
-    cross_post_results = []
-    if upload_post.upload_post_service.is_configured() and upload_post.upload_post_service.auto_upload:
-        logger.info("\n\n## cross-posting videos to TikTok/Instagram")
-        for video_path in final_video_paths:
-            result = upload_post.cross_post_video(
-                video_path=video_path,
-                title=params.video_subject or "Check out this video! #shorts #viral"
+    # 7. Generate social metadata and publish if enabled.
+    generated_social_metadata = social_metadata.generate_social_metadata(
+        video_subject=params.video_subject,
+        video_script=video_script,
+        video_terms=video_terms,
+        platforms=[
+            platform.value for platform in params.social_platforms
+        ] if params.social_platforms else config.app.get(
+            "social_platforms", []
+        ),
+        language=params.video_language,
+    )
+    if params.social_metadata:
+        generated_social_metadata = social_metadata.normalize_metadata(
+            params.social_metadata, default_title=params.video_subject
+        )
+    publish_results = []
+    auto_publish = (
+        params.social_auto_publish
+        if params.social_auto_publish is not None
+        else config.app.get("social_auto_publish", False)
+    )
+    if auto_publish:
+        logger.info("\n\n## publishing videos to configured social platforms")
+        try:
+            privacy = params.social_privacy or PublishPrivacy(
+                config.app.get("social_privacy", "private")
             )
-            cross_post_results.append(result)
-            if result.get('success'):
-                logger.info(f"✅ Cross-posted: {video_path}")
-            else:
-                logger.warning(f"⚠️ Failed to cross-post: {video_path} - {result.get('error', 'Unknown error')}")
+        except ValueError:
+            logger.warning("invalid social_privacy config, falling back to private")
+            privacy = PublishPrivacy.private
+        platforms = (
+            [platform.value for platform in params.social_platforms]
+            if params.social_platforms
+            else None
+        )
+        if platforms:
+            enabled_platforms = []
+            for platform in platforms:
+                if platform == "youtube" and not youtube_oauth.is_configured():
+                    logger.info("Skipping YouTube auto-publish because it is not connected")
+                    continue
+                if platform == "tiktok" and not config.app.get("tiktok_upload_enabled", False):
+                    logger.info("Skipping TikTok auto-publish because it is not connected")
+                    continue
+                if platform == "tiktok" and not params.tiktok_direct_post_consent:
+                    logger.warning(
+                        "Skipping TikTok auto-publish because explicit Direct Post consent was not provided"
+                    )
+                    continue
+                enabled_platforms.append(platform)
+            platforms = enabled_platforms
+        for video_path in final_video_paths:
+            for result in social_publisher.publish_video(
+                video_path=video_path,
+                metadata=generated_social_metadata,
+                platforms=platforms,
+                privacy=privacy,
+            ):
+                result["video_path"] = video_path
+                publish_results.append(result)
+                if result.get("success"):
+                    logger.info(f"Published to {result.get('platform')}: {video_path}")
+                else:
+                    logger.warning(
+                        f"Failed to publish to {result.get('platform')}: "
+                        f"{result.get('error', 'Unknown error')}"
+                    )
 
     kwargs = {
         "videos": final_video_paths,
@@ -377,7 +440,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "audio_duration": audio_duration,
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
-        "cross_post_results": cross_post_results if cross_post_results else None,
+        "social_metadata": generated_social_metadata.model_dump(),
+        "publish_results": publish_results if publish_results else None,
+        "cross_post_results": publish_results if publish_results else None,
     }
     sm.state.update_task(
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs

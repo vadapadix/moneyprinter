@@ -284,22 +284,38 @@ hide_log = false
 # Custom position as percentage from top (0-100), only effective when subtitle_position = "custom"
 # custom_position = 70.0
 
-########## Upload-Post (Cross-post to TikTok/Instagram)
-# Upload-Post allows you to automatically cross-post generated videos to TikTok and Instagram.
-# Visit https://upload-post.com to create an account and get your API key.
-# API Documentation: https://docs.upload-post.com
+########## Social Automation (TikTok / YouTube Shorts)
+# New normalized publishing layer. Defaults are conservative: generate metadata,
+# but do not publish publicly unless explicitly enabled.
+social_auto_publish = false
+social_platforms = ["youtube", "tiktok"]
+social_privacy = "private" # "private", "unlisted", "public", or "draft"
 
-# Enable/disable Upload-Post integration
-upload_post_enabled = false
+# Public HTTPS base URL for OAuth/legal pages, e.g. your ngrok URL.
+# Terms:   https://your-domain/terms
+# Privacy: https://your-domain/privacy
+# Web URL: https://your-domain/tiktok/connect
+public_base_url = ""
 
-# Your Upload-Post API key
-upload_post_api_key = ""
+# Manual trend seeds used when trend_source = "manual"
+trend_manual_topics = ["AI productivity tips", "money saving hacks", "daily motivation"]
 
-# Your Upload-Post username
-upload_post_username = ""
+# YouTube trend discovery and Shorts upload
+youtube_data_api_key = ""
+youtube_upload_enabled = false
+youtube_access_token = ""
+youtube_privacy_status = "private"
 
-# Platforms to cross-post to (options: "tiktok", "instagram")
-upload_post_platforms = ["tiktok", "instagram"]
-
-# Automatically cross-post videos after generation (if false, you'll need to call the API manually)
-upload_post_auto_upload = false
+# Native TikTok Content Posting API.
+# Requires TikTok app approval and a user access token with video.publish scope.
+tiktok_upload_enabled = false
+tiktok_client_key = ""
+tiktok_client_secret = ""
+tiktok_redirect_uri = "" # defaults to {public_base_url}/api/v1/tiktok/oauth/callback
+tiktok_scopes = ["user.info.basic", "video.publish"]
+tiktok_access_token = ""
+tiktok_refresh_token = ""
+tiktok_chunk_size = 10000000
+tiktok_disable_duet = false
+tiktok_disable_comment = false
+tiktok_disable_stitch = false

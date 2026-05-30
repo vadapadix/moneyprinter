@@ -42,6 +42,9 @@
 - [x] 视频素材来源 **高清**，而且 **无版权**，也可以使用自己的 **本地素材**
 - [x] 支持 **OpenAI**、**Moonshot**、**Azure**、**gpt4free**、**one-api**、**通义千问**、**Google Gemini**、**Ollama**、**DeepSeek**、**MiniMax**、 **文心一言**, **Pollinations**、**ModelScope** 等多种模型接入
     - 中国用户建议使用 **DeepSeek** 或 **Moonshot** 作为大模型提供商（国内可直接访问，不需要VPN。注册就送额度，基本够用）
+- [x] 支持 **视频上传测试** - 在生成视频前测试上传到TikTok和YouTube的配置
+- [x] 支持 **TikTok API** 直接上传，支持分块上传大文件
+- [x] 支持 **YouTube Shorts** 上传，支持隐私设置和标题设置
 
 ## 视频演示 📺
 
@@ -332,6 +335,37 @@ MoneyPrinterTurbo
 ## 字幕字体 🅰
 
 用于视频字幕的渲染，位于项目的 `resource/fonts` 目录下，你也可以放进去自己的字体。
+
+## 视频上传测试 🧪
+
+MoneyPrinterTurbo 支持在生成视频前测试上传到 TikTok 和 YouTube 的配置。这个功能可以帮助你：
+
+- 测试 API 凭证是否正确
+- 验证上传配置
+- 调试上传问题
+- 检查视频格式兼容性
+
+### 使用方法
+
+1. **Web 界面测试**：
+   - 打开 Web 界面
+   - 滚动到 "🧪 Test Video Upload" 部分
+   - 上传 MP4 视频文件
+   - 选择要测试的平台（TikTok、YouTube 或两者）
+   - 点击测试按钮查看结果
+
+2. **API 接口测试**：
+   ```bash
+   # 测试 TikTok 上传
+   curl -X POST "https://your-domain.com/api/v1/videos/test-upload?platform=tiktok" \
+     -F "file=@/path/to/your/video.mp4"
+   
+   # 测试 YouTube 上传
+   curl -X POST "https://your-domain.com/api/v1/videos/test-upload?platform=youtube" \
+     -F "file=@/path/to/your/video.mp4"
+   ```
+
+详细的使用说明请参考 [TEST_UPLOAD.md](docs/TEST_UPLOAD.md)。
 
 ## 常见问题 🤔
 

@@ -20,6 +20,7 @@ from app.models.schema import (
     AudioRequest,
     BgmRetrieveResponse,
     BgmUploadResponse,
+    SocialMetadata,
     SubtitleRequest,
     TaskDeletionResponse,
     TaskQueryRequest,
@@ -401,3 +402,137 @@ async def download_video(request: Request, file_path: str):
         filename=f"{filename}{extension}",
         media_type=f"video/{extension[1:]}",
     )
+
+from app.models.schema import PublishPrivacy
+from app.services.publishers.tiktok import TikTokPublisher
+from app.services.publishers.youtube import YouTubeShortsPublisher
+
+
+@router.post("/test-upload", summary="Test video upload to TikTok and YouTube")
+def test_upload_video(
+    request: Request,
+    file: UploadFile = File(...),
+    platform: str = "tiktok"  # tiktok, youtube, or both
+):
+    """
+    Test video upload to TikTok and/or YouTube without generating a video.
+    This allows you to test your upload configuration before generating actual videos.
+    
+    Args:
+        file: Video file to upload (mp4 format)
+        platform: Target platform - "tiktok", "youtube", or "both"
+    
+    Returns:
+        dict: Upload test results for each platform
+    """
+    request_id = base.get_task_id(request)
+    
+    # Validate file
+    if not file.filename or not file.filename.lower().endswith('.mp4'):
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message="Only MP4 video files are supported"
+        )
+    
+    # Create temporary file
+    temp_dir = utils.storage_dir("temp", create=True)
+    temp_file_path = os.path.join(temp_dir, f"test_upload_{request_id}_{file.filename}")
+    
+    try:
+        # Save uploaded file
+        with open(temp_file_path, "wb") as buffer:
+            file.file.seek(0)
+            buffer.write(file.file.read())
+        
+        # Prepare metadata for testing
+        metadata = SocialMetadata(
+            description="Test video upload",
+            platform_captions={"tiktok": "Test upload #test", "youtube": "Test upload #test"},
+            hashtags=["test", "upload"],
+            contains_synthetic_media=False
+        )
+        
+        results = {}
+        
+        # Test TikTok upload
+        if platform in ["tiktok", "both"]:
+            logger.info(f"Testing TikTok upload for {request_id}")
+            tiktok_publisher = TikTokPublisher()
+            tiktok_result = tiktok_publisher.publish(
+                video_path=temp_file_path,
+                metadata=metadata,
+                privacy=PublishPrivacy.private
+            )
+            results["tiktok"] = {
+                "success": tiktok_result.success,
+                "status": tiktok_result.status,
+                "error": tiktok_result.error,
+                "post_id": tiktok_result.post_id
+            }
+            
+            if not tiktok_result.success:
+                logger.error(f"TikTok test upload failed: {tiktok_result.error}")
+        
+        # Test YouTube upload
+        if platform in ["youtube", "both"]:
+            logger.info(f"Testing YouTube upload for {request_id}")
+            youtube_publisher = YouTubeShortsPublisher()
+            youtube_result = youtube_publisher.publish(
+                video_path=temp_file_path,
+                metadata=metadata,
+                privacy=PublishPrivacy.private,
+            )
+            results["youtube"] = {
+                "success": youtube_result.success,
+                "status": youtube_result.status,
+                "error": youtube_result.error,
+                "video_id": youtube_result.post_id,
+                "url": youtube_result.url,
+            }
+            
+            if not youtube_result.success:
+                logger.error(f"YouTube test upload failed: {youtube_result.error}")
+        
+        # Clean up temp file
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        
+        return utils.get_response(200, {
+            "request_id": request_id,
+            "platforms_tested": platform if platform != "both" else ["tiktok", "youtube"],
+            "results": results
+        })
+        
+    except Exception as e:
+        logger.error(f"Test upload failed for {request_id}: {str(e)}")
+        
+        # Clean up temp file in case of error
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        
+        raise HttpException(
+            task_id=request_id,
+            status_code=500,
+            message=f"Test upload failed: {str(e)}"
+        )
+
+
+@router.get("/test-upload-status/{request_id}", summary="Check test upload status")
+def get_test_upload_status(request: Request, request_id: str):
+    """
+    Check the status of a test upload operation.
+    
+    Args:
+        request_id: The request ID from the test upload operation
+    
+    Returns:
+        dict: Status information for the test upload
+    """
+    # This could be enhanced to store and retrieve upload status from a database
+    # For now, it returns a simple response
+    return utils.get_response(200, {
+        "request_id": request_id,
+        "status": "completed",  # This would be retrieved from storage
+        "message": "Test upload status check - implement storage for real status tracking"
+    })

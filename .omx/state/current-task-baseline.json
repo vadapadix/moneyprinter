@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "branch_name": "main",
+      "worktree_path": "D:\\moneyprinter\\MoneyPrinterTurbo",
+      "status": "active",
+      "created_at": "2026-05-30T11:29:14.582Z",
+      "updated_at": "2026-05-30T11:29:14.582Z"
+    }
+  ]
+}

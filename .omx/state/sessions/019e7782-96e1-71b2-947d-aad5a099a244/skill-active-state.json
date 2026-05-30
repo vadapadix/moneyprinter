@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "active": true,
+  "skill": "analyze",
+  "keyword": "$analyze",
+  "phase": "reviewing",
+  "activated_at": "2026-05-30T06:13:37.177Z",
+  "updated_at": "2026-05-30T11:29:13.769Z",
+  "source": "keyword-detector",
+  "input_lock": null
+}

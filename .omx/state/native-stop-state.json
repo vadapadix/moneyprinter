@@ -1,0 +1,24 @@
+{
+  "sessions": {
+    "019e7784-2fad-71c2-bd73-396edd56e9b8": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|{\"title\":\"автоматизувати публікацію відео\"}",
+        "first_seen_at": "2026-05-30T06:13:42.471Z",
+        "last_seen_at": "2026-05-30T06:13:42.471Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e7784-3395-7f23-a10c-e92a5a742f49",
+        "last_thread_id": null
+      }
+    },
+    "019e7782-96e1-71b2-947d-aad5a099a244": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|так, правильно: якщо ти вимкнеш `localhost` / `localtunnel`, то tiktok reviewer **не зможе відкрити**: ```text https://shaky-pots-stop.loca.lt/terms https://shaky-pots-stop.loca.lt/privacy https://shaky-pots-stop.loca.lt/tiktok/connect ``` і review можуть відхилити або поставити pending. найкраще рішення: винести ці 3 статичні сторінки на постійний хостинг, наприклад **vercel**. що треба мати доступним 24/7: ```text /terms /privacy /tiktok/connect ``` але oauth callback теж має бути доступний, якщо reviewer тестуватиме login kit: ```text /api/v1/tiktok/oauth/callback ``` варіанти: 1. **мінімально для legal pages:** vercel тільки для `/terms`, `/privacy`, `/tiktok/connect`, а demo video показує sandbox flow через localtunnel. але reviewer може натиснути connect і callback не спрацює. 2. **краще для review:** тримати локальний app + tunnel запущеним весь час review. нестабільно. 3. **найкраще:** задеплоїти backend/api на vps або render/railway/fly.io, а домен типу: ```text https://your-app.vercel.app ``` або власний: ```text https://moneyprinter.yourdomain.com ``` для швидкого проходження я б зробив так: - terms/privacy/connect на vercel. - у tiktok developer portal вказати vercel url. - redirect uri теж зробити через vercel, який редіректить/проксить на твій live backend, або задеплоїти backend окремо. якщо хочеш найшвидший шлях без vps: зробимо маленький vercel-проєкт зі статичними сторінками і окремо залишимо localtunnel тільки для demo/testing.",
+        "first_seen_at": "2026-05-30T16:23:41.670Z",
+        "last_seen_at": "2026-05-30T16:23:41.670Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e79b2-8704-7251-8a0b-fbd6675a91c8",
+        "last_thread_id": null
+      }
+    }
+  }
+}

@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, List, Optional, Union
 
 import pydantic
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import config
 
@@ -42,6 +42,72 @@ class VideoAspect(str, Enum):
         elif self == VideoAspect.square.value:
             return 1080, 1080
         return 1080, 1920
+
+
+class SocialPlatform(str, Enum):
+    tiktok = "tiktok"
+    instagram = "instagram"
+    youtube = "youtube"
+
+
+class PublishPrivacy(str, Enum):
+    public = "public"
+    unlisted = "unlisted"
+    private = "private"
+    draft = "draft"
+
+
+class SocialMetadata(BaseModel):
+    title: str = ""
+    description: str = ""
+    hashtags: List[str] = Field(default_factory=list)
+    youtube_tags: List[str] = Field(default_factory=list)
+    category_id: str = "22"
+    contains_synthetic_media: bool = True
+    platform_captions: dict[str, str] = Field(default_factory=dict)
+
+
+class PlatformPublishSettings(BaseModel):
+    platform: SocialPlatform
+    enabled: bool = True
+    privacy: PublishPrivacy = PublishPrivacy.private
+
+
+class TrendCandidate(BaseModel):
+    source: str
+    topic: str
+    title: str = ""
+    url: str = ""
+    score: float = 0.0
+    region: str = ""
+    tags: List[str] = Field(default_factory=list)
+    fetched_at: str = ""
+
+
+class TrendQueryRequest(BaseModel):
+    source: str = "manual"
+    region: str = "US"
+    category_id: Optional[str] = None
+    limit: int = 5
+
+
+class AutomationRunRequest(BaseModel):
+    trend_source: str = "manual"
+    region: str = "US"
+    category_id: Optional[str] = None
+    limit: int = 1
+    video_language: Optional[str] = ""
+    platforms: List[SocialPlatform] = Field(
+        default_factory=lambda: [SocialPlatform.youtube, SocialPlatform.tiktok]
+    )
+    auto_publish: bool = False
+    review_required: bool = True
+
+
+class PublishRequest(BaseModel):
+    platforms: Optional[List[SocialPlatform]] = None
+    metadata: Optional[SocialMetadata] = None
+    privacy: Optional[PublishPrivacy] = None
 
 
 class _Config:
@@ -106,6 +172,11 @@ class VideoParams(BaseModel):
     stroke_width: float = 1.5
     n_threads: Optional[int] = 2
     paragraph_number: Optional[int] = 1
+    social_auto_publish: Optional[bool] = None
+    social_platforms: Optional[List[SocialPlatform]] = None
+    social_privacy: Optional[PublishPrivacy] = None
+    social_metadata: Optional[SocialMetadata] = None
+    tiktok_direct_post_consent: Optional[bool] = False
 
 
 class SubtitleRequest(BaseModel):

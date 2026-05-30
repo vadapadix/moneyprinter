@@ -3,6 +3,7 @@ import sys
 import webbrowser
 from uuid import UUID, uuid4
 
+import requests
 import streamlit as st
 from loguru import logger
 
@@ -17,6 +18,8 @@ if root_dir not in sys.path:
 from app.config import config
 from app.models.schema import (
     MaterialInfo,
+    PublishPrivacy,
+    SocialPlatform,
     VideoAspect,
     VideoConcatMode,
     VideoParams,
@@ -24,7 +27,22 @@ from app.models.schema import (
 )
 from app.services import llm, voice
 from app.services import task as tm
+from app.services import youtube_oauth
+from app.services.publishers.tiktok import TikTokPublisher
 from app.utils import utils
+
+# Helper functions for test upload
+def get_base_url():
+    """Get the local API URL for Streamlit-to-FastAPI calls."""
+    endpoint = config.app.get("endpoint", "").rstrip("/")
+    if endpoint:
+        return endpoint
+    return f"http://127.0.0.1:{config.listen_port}"
+
+def get_api_key():
+    """Get API key for authentication (if needed)"""
+    # This is a placeholder - implement actual authentication if required
+    return ""  # Add your authentication logic here
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -98,6 +116,112 @@ with lang_col:
         code = selected_language.split(" - ")[0].strip()
         st.session_state["ui_language"] = code
         config.ui["language"] = code
+
+# Test Upload Section
+st.divider()
+st.subheader("🧪 Test Video Upload")
+
+# Create two columns for test upload
+test_upload_cols = st.columns([1, 1])
+
+with test_upload_cols[0]:
+    st.write("**Test TikTok Upload**")
+    tiktok_test_file = st.file_uploader(
+        "Upload MP4 file for TikTok test",
+        type=["mp4"],
+        key="tiktok_test_file"
+    )
+    if tiktok_test_file is not None:
+        if st.button("Test TikTok Upload", key="test_tiktok_upload"):
+            try:
+                # Upload file to test endpoint
+                files = {"file": tiktok_test_file}
+                base_url = get_base_url()
+                if not base_url:
+                    st.error("❌ public_base_url is not configured in config.toml")
+                    st.stop()
+                    
+                response = requests.post(
+                    f"{base_url}/api/v1/test-upload?platform=tiktok",
+                    files=files
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    st.success("✅ TikTok test upload completed!")
+                    st.json(result.get("data", {}))
+                else:
+                    st.error(f"❌ TikTok test upload failed: {response.text}")
+                    
+            except Exception as e:
+                st.error(f"❌ Error testing TikTok upload: {str(e)}")
+
+with test_upload_cols[1]:
+    st.write("**Test YouTube Upload**")
+    youtube_test_file = st.file_uploader(
+        "Upload MP4 file for YouTube test",
+        type=["mp4"],
+        key="youtube_test_file"
+    )
+    if youtube_test_file is not None:
+        if st.button("Test YouTube Upload", key="test_youtube_upload"):
+            try:
+                # Upload file to test endpoint
+                files = {"file": youtube_test_file}
+                base_url = get_base_url()
+                if not base_url:
+                    st.error("❌ public_base_url is not configured in config.toml")
+                    st.stop()
+                    
+                response = requests.post(
+                    f"{base_url}/api/v1/test-upload?platform=youtube",
+                    files=files
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    st.success("✅ YouTube test upload completed!")
+                    st.json(result.get("data", {}))
+                else:
+                    st.error(f"❌ YouTube test upload failed: {response.text}")
+                    
+            except Exception as e:
+                st.error(f"❌ Error testing YouTube upload: {str(e)}")
+
+# Test both platforms
+with test_upload_cols[0]:
+    st.write("**Test Both Platforms**")
+    both_test_file = st.file_uploader(
+        "Upload MP4 file for both platforms test",
+        type=["mp4"],
+        key="both_test_file"
+    )
+    if both_test_file is not None:
+        if st.button("Test Both Platforms", key="test_both_upload"):
+            try:
+                # Upload file to test endpoint
+                files = {"file": both_test_file}
+                base_url = get_base_url()
+                if not base_url:
+                    st.error("❌ public_base_url is not configured in config.toml")
+                    st.stop()
+                    
+                response = requests.post(
+                    f"{base_url}/api/v1/test-upload?platform=both",
+                    files=files
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    st.success("✅ Both platforms test upload completed!")
+                    st.json(result.get("data", {}))
+                else:
+                    st.error(f"❌ Both platforms test upload failed: {response.text}")
+                    
+            except Exception as e:
+                st.error(f"❌ Error testing both platforms upload: {str(e)}")
+
+st.divider()
 
 support_locales = [
     "zh-CN",
@@ -516,15 +640,104 @@ if not config.app.get("hide_config", False):
             )
             save_keys_to_config("pixabay_api_keys", pixabay_api_key)
 
+params = VideoParams(video_subject="")
+uploaded_files = []
+uploaded_audio_file = None
+
+social_platform_options = {
+    "YouTube Shorts": SocialPlatform.youtube,
+    "TikTok": SocialPlatform.tiktok,
+}
+tiktok_connected = bool(
+    config.app.get("tiktok_upload_enabled")
+    and config.app.get("tiktok_access_token")
+    and config.app.get("tiktok_refresh_token")
+)
+tiktok_creator_info = {}
+if tiktok_connected:
+    tiktok_publisher = TikTokPublisher()
+    if hasattr(tiktok_publisher, "query_creator_info"):
+        tiktok_creator_result = tiktok_publisher.query_creator_info()
+        if tiktok_creator_result.get("success"):
+            tiktok_creator_info = tiktok_creator_result.get("data", {})
+youtube_connected = youtube_oauth.is_configured()
+configured_social_platforms = config.app.get("social_platforms", ["youtube", "tiktok"])
+connected_social_platforms = []
+if youtube_connected:
+    connected_social_platforms.append("youtube")
+if tiktok_connected:
+    connected_social_platforms.append("tiktok")
+default_social_platforms = [
+    label
+    for label, platform in social_platform_options.items()
+    if platform.value in configured_social_platforms
+    and platform.value in connected_social_platforms
+]
+connect_base_url = config.app.get("public_base_url", "").rstrip("/")
+connect_url = f"{connect_base_url}/api/v1/tiktok/oauth/start" if connect_base_url else ""
+
+with st.container(border=True):
+    st.write("Social publishing")
+    status_cols = st.columns([1, 1, 2])
+    status_cols[0].success("TikTok connected" if tiktok_connected else "TikTok not connected")
+    status_cols[1].success("YouTube connected" if youtube_connected else "YouTube not connected")
+    if connect_url:
+        if hasattr(st, "link_button"):
+            status_cols[2].link_button("Connect / refresh TikTok", connect_url, use_container_width=True)
+        else:
+            status_cols[2].markdown(f"[Connect / refresh TikTok]({connect_url})")
+    else:
+        status_cols[2].warning("Set public_base_url in config.toml to enable TikTok connect.")
+
+    if tiktok_creator_info:
+        creator_name = (
+            tiktok_creator_info.get("creator_nickname")
+            or tiktok_creator_info.get("creator_username")
+            or "Connected TikTok creator"
+        )
+        privacy_options = ", ".join(tiktok_creator_info.get("privacy_level_options", []))
+        st.caption(f"TikTok creator: {creator_name}. Allowed privacy options: {privacy_options}")
+
+    social_cols = st.columns([2, 1, 1])
+    selected_social_labels = social_cols[0].multiselect(
+        "Platforms",
+        options=list(social_platform_options.keys()),
+        default=default_social_platforms,
+    )
+    selected_social_privacy = social_cols[1].selectbox(
+        "Privacy",
+        options=[PublishPrivacy.private, PublishPrivacy.public, PublishPrivacy.draft],
+        format_func=lambda privacy: privacy.value,
+        index=0,
+    )
+    selected_social_auto_publish = social_cols[2].checkbox(
+        "Auto-publish after video",
+        value=bool(config.app.get("social_auto_publish", False)),
+    )
+    tiktok_selected = "TikTok" in selected_social_labels
+    tiktok_direct_post_consent = True
+    if tiktok_selected and selected_social_auto_publish:
+        tiktok_direct_post_consent = st.checkbox(
+            "I confirm this video, caption, hashtags, and AI/synthetic label are ready to send to TikTok.",
+            value=False,
+            key="tiktok_direct_post_consent",
+        )
+    selected_social_platforms = [
+        social_platform_options[label] for label in selected_social_labels
+    ]
+    config.app["social_platforms"] = [platform.value for platform in selected_social_platforms]
+    config.app["social_privacy"] = selected_social_privacy.value
+    config.app["social_auto_publish"] = selected_social_auto_publish
+    params.social_platforms = selected_social_platforms
+    params.social_privacy = selected_social_privacy
+    params.social_auto_publish = selected_social_auto_publish
+    params.tiktok_direct_post_consent = tiktok_direct_post_consent
+
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
 left_panel = panel[0]
 middle_panel = panel[1]
 right_panel = panel[2]
-
-params = VideoParams(video_subject="")
-uploaded_files = []
-uploaded_audio_file = None
 
 with left_panel:
     with st.container(border=True):

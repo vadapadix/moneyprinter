@@ -56,7 +56,7 @@ class NewsPipelineTest(unittest.TestCase):
             result = news_pipeline.prepare_news_context(params)
 
         self.assertIs(result, story)
-        self.assertIn("Create a short factual news video in English", params.video_subject)
+        self.assertIn("Write a short factual news voiceover in English", params.video_subject)
         self.assertIn("Market update", params.video_subject)
         self.assertIn("Stocks moved today", params.video_subject)
         self.assertEqual(params.video_script, "")
@@ -84,6 +84,20 @@ class NewsPipelineTest(unittest.TestCase):
         self.assertIn("Existing story", params.video_subject)
         self.assertIn("Already selected", params.video_subject)
         self.assertEqual(params.video_script, "")
+
+    def test_news_script_subject_keeps_headline_and_bans_padding(self):
+        story = NewsStory(
+            title="Drone strike hits Romanian border town",
+            summary="Residents told reporters they fear another attack.",
+            url="https://news.example/romania",
+        )
+
+        subject = news_pipeline.build_script_subject(story)
+
+        self.assertIn("headline is the angle", subject)
+        self.assertIn("Use only facts found in the source material", subject)
+        self.assertIn("keep the script short instead of padding it", subject)
+        self.assertIn("Drone strike hits Romanian border town", subject)
 
 
 if __name__ == "__main__":

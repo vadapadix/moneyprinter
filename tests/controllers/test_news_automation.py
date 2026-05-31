@@ -97,7 +97,7 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(params.video_language, "en")
         self.assertEqual(params.voice_name, "en-US-BrianNeural-Male")
         self.assertEqual(params.video_script, "")
-        self.assertIn("Create a short factual news video in English", params.video_subject)
+        self.assertIn("Write a short factual news voiceover in English", params.video_subject)
         self.assertIn("Українська новина", params.video_subject)
 
 

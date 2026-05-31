@@ -37,8 +37,14 @@ def build_script_subject(story: NewsStory, output_language: str = "English") -> 
     summary = story.summary.strip()
     source_url = story.url.strip()
     return (
-        f"Create a short factual news video in {output_language}. "
-        "Use only the facts from this source material, avoid speculation, and make it suitable for YouTube Shorts/TikTok. "
+        f"Write a short factual news voiceover in {output_language}. "
+        "The headline is the angle of the story, so the script must stay directly on that headline. "
+        "Use only facts found in the source material below. Do not invent names, numbers, causes, reactions, or consequences. "
+        "If the source material is thin, keep the script short instead of padding it. "
+        "Use plain human newsreader English with concrete details and short sentences. "
+        "Avoid filler, motivational wording, broad lessons, vague phrases like 'this highlights' or 'raises questions', and any intro such as 'welcome'. "
+        "Do not mention Telegram, the source URL, hashtags, markdown, narrator labels, or that this is a script. "
+        "Make it suitable for a 30-60 second YouTube Shorts/TikTok news video. "
         f"Title: {title}. "
         f"Summary: {summary}. "
         f"Source URL: {source_url}."

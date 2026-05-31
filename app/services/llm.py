@@ -476,6 +476,8 @@ Generate a script for a video, depending on the subject of the video.
 6. do not include "voiceover", "narrator" or similar indicators of what should be spoken at the beginning of each paragraph or line.
 7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
 8. if a language is provided in Initialization, respond only in that language; otherwise respond in the same language as the video subject.
+9. when the subject contains source material or news facts, stay strictly within those facts and do not add unsupported context.
+10. avoid filler phrases, generic lessons, promotional language, and vague transitions; every sentence should move the story forward.
 
 # Initialization:
 - video subject: {video_subject}

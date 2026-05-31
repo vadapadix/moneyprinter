@@ -84,6 +84,39 @@ class TrendCandidate(BaseModel):
     fetched_at: str = ""
 
 
+class NewsMediaAsset(BaseModel):
+    provider: str = ""
+    url: str = ""
+    media_type: str = "image"
+    title: str = ""
+    credit: str = ""
+    license: str = ""
+    source_url: str = ""
+    duration: float = 0.0
+
+
+class NewsStory(BaseModel):
+    provider: str = ""
+    title: str = ""
+    summary: str = ""
+    url: str = ""
+    published_at: str = ""
+    language: str = ""
+    country: str = ""
+    category: str = ""
+    keywords: List[str] = Field(default_factory=list)
+    media: List[NewsMediaAsset] = Field(default_factory=list)
+
+
+class NewsQueryRequest(BaseModel):
+    source: str = "newsdata"
+    query: str = ""
+    country: str = "us"
+    language: str = "en"
+    category: Optional[str] = None
+    limit: int = 5
+
+
 class TrendQueryRequest(BaseModel):
     source: str = "manual"
     region: str = "US"

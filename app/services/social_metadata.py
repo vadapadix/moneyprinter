@@ -100,6 +100,7 @@ def generate_social_metadata(
     trend_context: dict | None = None,
     platforms: list[str] | None = None,
     language: str = "",
+    source_context: dict | None = None,
 ) -> SocialMetadata:
     platforms = platforms or ["youtube", "tiktok"]
     prompt = f"""
@@ -116,6 +117,9 @@ Rules:
 5. platform_captions must be an object keyed by platform name.
 6. Include #Shorts in either title, description, or hashtags for YouTube.
 7. Do not include markdown.
+8. If source_context contains source_url, include a short attribution line in description.
+9. For TikTok, platform_captions.tiktok must be a ready-to-post caption with 3-8 hashtags.
+10. For YouTube, description must include a short summary, hashtags, and source attribution when available.
 
 Context:
 subject: {video_subject}
@@ -123,6 +127,7 @@ language: {language}
 platforms: {platforms}
 stock_video_terms: {video_terms}
 trend_context: {trend_context or {}}
+source_context: {source_context or {}}
 script: {video_script}
 """.strip()
 

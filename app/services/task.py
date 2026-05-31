@@ -373,6 +373,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             "social_platforms", []
         ),
         language=params.video_language,
+        trend_context=params.trend_context,
+        source_context=params.news_source_context,
     )
     if params.social_metadata:
         generated_social_metadata = social_metadata.normalize_metadata(

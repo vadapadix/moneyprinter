@@ -176,6 +176,8 @@ class VideoParams(BaseModel):
     social_platforms: Optional[List[SocialPlatform]] = None
     social_privacy: Optional[PublishPrivacy] = None
     social_metadata: Optional[SocialMetadata] = None
+    trend_context: Optional[dict[str, Any]] = None
+    news_source_context: Optional[dict[str, Any]] = None
     tiktok_direct_post_consent: Optional[bool] = False
 
 

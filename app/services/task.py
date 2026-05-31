@@ -1,4 +1,5 @@
 import math
+import os
 import os.path
 import re
 from os import path
@@ -191,15 +192,19 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         )
         video_paths = []
         for item in direct_materials:
-            saved_video_path = material.save_video(item.url, utils.task_dir(task_id))
+            if os.path.isfile(item.url):
+                saved_video_path = item.url
+            else:
+                saved_video_path = material.save_video(item.url, utils.task_dir(task_id))
             if saved_video_path:
                 video_paths.append(saved_video_path)
-        if video_paths:
+        min_news_clips = int(config.app.get("news_min_clips", 3))
+        if len(video_paths) >= min_news_clips:
             return video_paths
 
         fallback_source = config.app.get("news_stock_fallback_source", "pexels")
         logger.info(
-            f"no direct news video assets found, falling back to {fallback_source}"
+            f"adding {fallback_source} stock fallback clips after {len(video_paths)} direct news clips"
         )
         downloaded_videos = material.download_videos(
             task_id=task_id,
@@ -211,10 +216,12 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             max_clip_duration=params.video_clip_duration,
         )
         if not downloaded_videos:
+            if video_paths:
+                return video_paths
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             logger.error("failed to download fallback videos for news story")
             return None
-        return downloaded_videos
+        return video_paths + downloaded_videos
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         downloaded_videos = material.download_videos(

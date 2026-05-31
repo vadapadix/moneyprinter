@@ -32,6 +32,19 @@ def build_source_context(story: NewsStory) -> dict:
     }
 
 
+def build_script_subject(story: NewsStory, output_language: str = "English") -> str:
+    title = story.title.strip()
+    summary = story.summary.strip()
+    source_url = story.url.strip()
+    return (
+        f"Create a short factual news video in {output_language}. "
+        "Use only the facts from this source material, avoid speculation, and make it suitable for YouTube Shorts/TikTok. "
+        f"Title: {title}. "
+        f"Summary: {summary}. "
+        f"Source URL: {source_url}."
+    ).strip()
+
+
 def story_from_source_context(source_context: dict) -> NewsStory:
     media = source_context.get("media") or []
     return NewsStory(
@@ -78,9 +91,7 @@ def prepare_news_context(params) -> NewsStory | None:
             "keywords": story.keywords,
         }
         if story.title:
-            params.video_subject = story.title
-        if not params.video_script and (story.title or story.summary):
-            params.video_script = f"{story.title}\n\n{story.summary}".strip()
+            params.video_subject = build_script_subject(story)
         return story
 
     query = query_from_params(params)
@@ -102,8 +113,6 @@ def prepare_news_context(params) -> NewsStory | None:
     }
 
     if story.title:
-        params.video_subject = story.title
-    if not params.video_script and (story.title or story.summary):
-        params.video_script = f"{story.title}\n\n{story.summary}".strip()
+        params.video_subject = build_script_subject(story)
 
     return story

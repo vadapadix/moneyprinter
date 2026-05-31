@@ -3,6 +3,7 @@ from unittest import mock
 
 from app.controllers.v1 import automation
 from app.models.schema import NewsAutomationRunRequest, NewsQueryRequest, NewsStory
+from app.services import automation as automation_service
 
 
 class NewsAutomationControllerTest(unittest.TestCase):
@@ -74,6 +75,30 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(response["data"]["queued_count"], 1)
         self.assertEqual(response["data"]["tasks"][0]["story"]["title"], "Telegram update")
         self.assertEqual(len(added_tasks), 1)
+
+    def test_news_video_params_force_english_and_configured_voice(self):
+        story = NewsStory(
+            provider="telethon",
+            title="Українська новина",
+            summary="Короткий опис українською",
+            url="https://t.me/demo/2",
+        )
+
+        with mock.patch.dict(
+            "app.services.automation.config.ui",
+            {"voice_name": "en-US-BrianNeural-Male", "voice_rate": 1.0},
+            clear=False,
+        ):
+            params = automation_service.build_video_params_from_news(
+                NewsAutomationRunRequest(source="telethon", language="uk"),
+                story,
+            )
+
+        self.assertEqual(params.video_language, "en")
+        self.assertEqual(params.voice_name, "en-US-BrianNeural-Male")
+        self.assertEqual(params.video_script, "")
+        self.assertIn("Create a short factual news video in English", params.video_subject)
+        self.assertIn("Українська новина", params.video_subject)
 
 
 if __name__ == "__main__":

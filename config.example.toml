@@ -331,7 +331,10 @@ news_query = ""
 news_country = "us"
 news_language = "en"
 news_category = ""
+news_output_language = "en"
 news_stock_fallback_source = "pexels"
+news_min_clips = 3
+news_video_clip_duration = 5
 news_auto_limit = 1
 
 # Telegram Bot API token from @BotFather. Add the bot to each channel you want

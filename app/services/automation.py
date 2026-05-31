@@ -70,10 +70,28 @@ def _configured_privacy() -> PublishPrivacy:
         return PublishPrivacy.private
 
 
+def _news_output_language(request: NewsAutomationRunRequest) -> str:
+    return (
+        request.video_language
+        or config.app.get("news_output_language", "")
+        or config.app.get("video_language", "")
+        or "en"
+    )
+
+
+def _configured_voice_name() -> str:
+    return (
+        config.ui.get("voice_name", "")
+        or config.app.get("voice_name", "")
+        or "en-US-BrianNeural-Male"
+    )
+
+
 def build_video_params_from_news(
     request: NewsAutomationRunRequest, story: NewsStory
 ) -> VideoParams:
     source_context = news_pipeline.build_source_context(story)
+    output_language = _news_output_language(request)
     platforms = request.platforms or _configured_platforms()
     auto_publish = (
         bool(config.app.get("social_auto_publish", False))
@@ -81,10 +99,11 @@ def build_video_params_from_news(
         else request.auto_publish
     )
     return VideoParams(
-        video_subject=story.title,
-        video_script=f"{story.title}\n\n{story.summary}".strip(),
-        video_language=request.video_language or request.language or story.language or "",
+        video_subject=news_pipeline.build_script_subject(story),
+        video_script="",
+        video_language=output_language,
         video_aspect="9:16",
+        video_clip_duration=int(config.app.get("news_video_clip_duration", 5)),
         video_source="news",
         news_source=story.provider or request.source,
         news_query=request.query or story.title,
@@ -101,6 +120,12 @@ def build_video_params_from_news(
             "keywords": story.keywords,
         },
         paragraph_number=1,
+        voice_name=_configured_voice_name(),
+        voice_rate=float(config.ui.get("voice_rate", config.app.get("voice_rate", 1.0))),
+        bgm_type=config.ui.get("bgm_type", config.app.get("bgm_type", "random")),
+        font_name=config.ui.get("font_name", config.app.get("font_name", "STHeitiMedium.ttc")),
+        font_size=int(config.ui.get("font_size", config.app.get("font_size", 60))),
+        subtitle_position=config.ui.get("subtitle_position", config.app.get("subtitle_position", "bottom")),
         social_auto_publish=auto_publish,
         social_platforms=platforms,
         social_privacy=request.privacy or _configured_privacy(),

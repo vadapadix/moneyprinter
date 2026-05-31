@@ -78,6 +78,41 @@ def _story_from_message(message, chat=None) -> NewsStory | None:
     )
 
 
+def _message_has_video(message) -> bool:
+    if getattr(message, "video", None):
+        return True
+    document = getattr(message, "document", None)
+    mime_type = (getattr(document, "mime_type", "") or "").lower()
+    return mime_type.startswith("video/")
+
+
+async def _attach_downloaded_video(client, message, story: NewsStory, chat=None) -> None:
+    if not story or not _message_has_video(message):
+        return
+
+    media_dir = utils.storage_dir("telegram_news_media", create=True)
+    channel_name = getattr(chat, "username", "") or str(getattr(chat, "id", "telegram"))
+    target = os.path.join(media_dir, f"{channel_name}_{message.id}.mp4")
+    if not os.path.exists(target) or os.path.getsize(target) <= 0:
+        downloaded = await client.download_media(message, file=target)
+        if downloaded:
+            target = downloaded
+
+    if os.path.exists(target) and os.path.getsize(target) > 0:
+        story.media.insert(
+            0,
+            NewsMediaAsset(
+                provider="telethon",
+                url=target,
+                media_type="video",
+                title=story.title,
+                credit=getattr(chat, "title", "") or getattr(chat, "username", ""),
+                source_url=story.url,
+                duration=0,
+            ),
+        )
+
+
 def _run(coro):
     try:
         asyncio.get_running_loop()
@@ -135,6 +170,7 @@ class TelethonProvider:
                 ):
                     story = _story_from_message(message, entity)
                     if story:
+                        await _attach_downloaded_video(client, message, story, entity)
                         stories.append(story)
                     if len(stories) >= limit:
                         return stories
@@ -156,6 +192,7 @@ class TelethonProvider:
                     chat = chats_by_id.get(channel_id)
                     story = _story_from_message(message, chat)
                     if story:
+                        await _attach_downloaded_video(client, message, story, chat)
                         stories.append(story)
                     if len(stories) >= limit:
                         break

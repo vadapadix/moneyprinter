@@ -56,8 +56,10 @@ class NewsPipelineTest(unittest.TestCase):
             result = news_pipeline.prepare_news_context(params)
 
         self.assertIs(result, story)
-        self.assertEqual(params.video_subject, "Market update")
-        self.assertIn("Stocks moved today", params.video_script)
+        self.assertIn("Create a short factual news video in English", params.video_subject)
+        self.assertIn("Market update", params.video_subject)
+        self.assertIn("Stocks moved today", params.video_subject)
+        self.assertEqual(params.video_script, "")
         self.assertEqual(params.news_source_context["source_url"], "https://news.example/story")
         self.assertEqual(params.news_media_assets[0]["url"], "https://news.example/clip.mp4")
 
@@ -79,8 +81,9 @@ class NewsPipelineTest(unittest.TestCase):
 
         search_mock.assert_not_called()
         self.assertEqual(story.title, "Existing story")
-        self.assertEqual(params.video_subject, "Existing story")
-        self.assertIn("Already selected", params.video_script)
+        self.assertIn("Existing story", params.video_subject)
+        self.assertIn("Already selected", params.video_subject)
+        self.assertEqual(params.video_script, "")
 
 
 if __name__ == "__main__":

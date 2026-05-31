@@ -475,7 +475,7 @@ Generate a script for a video, depending on the subject of the video.
 5. only return the raw content of the script.
 6. do not include "voiceover", "narrator" or similar indicators of what should be spoken at the beginning of each paragraph or line.
 7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
-8. respond in the same language as the video subject.
+8. if a language is provided in Initialization, respond only in that language; otherwise respond in the same language as the video subject.
 
 # Initialization:
 - video subject: {video_subject}

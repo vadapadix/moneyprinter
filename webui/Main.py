@@ -19,6 +19,7 @@ from app.config import config
 from app.models.schema import (
     MaterialInfo,
     PublishPrivacy,
+    SocialMetadata,
     SocialPlatform,
     VideoAspect,
     VideoConcatMode,
@@ -733,6 +734,43 @@ with st.container(border=True):
     params.social_auto_publish = selected_social_auto_publish
     params.tiktok_direct_post_consent = tiktok_direct_post_consent
 
+with st.container(border=True):
+    st.write("Social metadata")
+    metadata_cols = st.columns([1, 1])
+    social_title = metadata_cols[0].text_input(
+        "Post title", value=config.app.get("social_post_title", "")
+    ).strip()
+    social_hashtags = metadata_cols[1].text_input(
+        "Hashtags", value=config.app.get("social_post_hashtags", "")
+    ).strip()
+    social_description = st.text_area(
+        "Post description",
+        value=config.app.get("social_post_description", ""),
+        height=110,
+    ).strip()
+    youtube_tags = st.text_input(
+        "YouTube tags", value=config.app.get("social_youtube_tags", "")
+    ).strip()
+    config.app["social_post_title"] = social_title
+    config.app["social_post_description"] = social_description
+    config.app["social_post_hashtags"] = social_hashtags
+    config.app["social_youtube_tags"] = youtube_tags
+    if social_title or social_description or social_hashtags or youtube_tags:
+        params.social_metadata = SocialMetadata(
+            title=social_title or params.video_subject,
+            description=social_description or social_title or params.video_subject,
+            hashtags=[
+                tag.strip()
+                for tag in social_hashtags.replace(",", " ").split()
+                if tag.strip()
+            ],
+            youtube_tags=[
+                tag.strip()
+                for tag in youtube_tags.split(",")
+                if tag.strip()
+            ],
+        )
+
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
 left_panel = panel[0]
@@ -811,12 +849,12 @@ with middle_panel:
             (tr("Pexels"), "pexels"),
             (tr("Pixabay"), "pixabay"),
             (tr("Local file"), "local"),
-            (tr("TikTok"), "douyin"),
-            (tr("Bilibili"), "bilibili"),
-            (tr("Xiaohongshu"), "xiaohongshu"),
+            (tr("News"), "news"),
         ]
 
         saved_video_source_name = config.app.get("video_source", "pexels")
+        if saved_video_source_name not in [v[1] for v in video_sources]:
+            saved_video_source_name = "pexels"
         saved_video_source_index = [v[1] for v in video_sources].index(
             saved_video_source_name
         )
@@ -838,6 +876,36 @@ with middle_panel:
                 type=local_file_types + [file_type.upper() for file_type in local_file_types],
                 accept_multiple_files=True,
             )
+
+        if params.video_source == "news":
+            news_sources = ["newsdata", "guardian", "telegram"]
+            saved_news_source = config.app.get("news_source", "newsdata")
+            if saved_news_source not in news_sources:
+                saved_news_source = "newsdata"
+            params.news_source = st.selectbox(
+                "News source",
+                options=news_sources,
+                index=news_sources.index(saved_news_source),
+            )
+            params.news_query = st.text_input(
+                "News query",
+                value=config.app.get("news_query", "") or params.video_subject,
+            ).strip()
+            news_cols = st.columns(3)
+            params.news_country = news_cols[0].text_input(
+                "Country", value=config.app.get("news_country", "us")
+            ).strip()
+            params.news_language = news_cols[1].text_input(
+                "Language", value=config.app.get("news_language", "en")
+            ).strip()
+            params.news_category = news_cols[2].text_input(
+                "Category", value=config.app.get("news_category", "")
+            ).strip() or None
+            config.app["news_source"] = params.news_source
+            config.app["news_query"] = params.news_query
+            config.app["news_country"] = params.news_country
+            config.app["news_language"] = params.news_language
+            config.app["news_category"] = params.news_category or ""
 
         selected_index = st.selectbox(
             tr("Video Concat Mode"),
@@ -1281,7 +1349,7 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if params.video_source not in ["pexels", "pixabay", "local"]:
+    if params.video_source not in ["pexels", "pixabay", "local", "news"]:
         st.error(tr("Please Select a Valid Video Source"))
         scroll_to_bottom()
         st.stop()
@@ -1295,6 +1363,28 @@ if start_button:
         st.error(tr("Please Enter the Pixabay API Key"))
         scroll_to_bottom()
         st.stop()
+
+    if params.video_source == "news":
+        params.news_query = params.news_query or params.video_subject
+        if not params.news_query:
+            st.error("Please enter a news query or video subject")
+            scroll_to_bottom()
+            st.stop()
+        if params.news_source == "newsdata" and not config.app.get("newsdata_api_key", ""):
+            st.error("Please enter the NewsData API key in config.toml")
+            scroll_to_bottom()
+            st.stop()
+        if params.news_source == "guardian" and not config.app.get("guardian_api_key", ""):
+            st.error("Please enter the Guardian API key in config.toml")
+            scroll_to_bottom()
+            st.stop()
+        if params.news_source == "telegram" and (
+            not config.app.get("telegram_bot_token", "")
+            or not config.app.get("telegram_channel_ids", [])
+        ):
+            st.error("Please configure telegram_bot_token and telegram_channel_ids in config.toml")
+            scroll_to_bottom()
+            st.stop()
 
     if uploaded_audio_file:
         task_dir = utils.task_dir(task_id)

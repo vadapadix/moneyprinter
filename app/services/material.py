@@ -241,6 +241,17 @@ def download_videos(
     if source == "pixabay":
         search_videos = search_videos_pixabay
 
+    if isinstance(search_terms, str):
+        search_terms = [search_terms]
+    search_terms = [
+        str(term).strip()
+        for term in search_terms
+        if str(term).strip() and not str(term).startswith("Error: ")
+    ]
+    if not search_terms:
+        logger.error("no valid video search terms provided")
+        return []
+
     for search_term in search_terms:
         video_items = search_videos(
             search_term=search_term,
@@ -266,6 +277,7 @@ def download_videos(
     elif material_directory and not os.path.isdir(material_directory):
         material_directory = ""
 
+    video_contact_mode = VideoConcatMode(video_contact_mode)
     if video_contact_mode.value == VideoConcatMode.random.value:
         random.shuffle(valid_video_items)
 

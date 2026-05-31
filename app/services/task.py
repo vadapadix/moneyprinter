@@ -52,6 +52,9 @@ def generate_terms(task_id, params, video_script):
         video_terms = llm.generate_terms(
             video_subject=params.video_subject, video_script=video_script, amount=5
         )
+        if isinstance(video_terms, str) and video_terms.startswith("Error: "):
+            logger.warning("falling back to local search terms after LLM terms failure")
+            video_terms = _fallback_search_terms(params, video_script)
     else:
         if isinstance(video_terms, str):
             video_terms = [term.strip() for term in re.split(r"[,，]", video_terms)]
@@ -68,6 +71,90 @@ def generate_terms(task_id, params, video_script):
         return None
 
     return video_terms
+
+
+def _fallback_search_terms(params, video_script: str, amount: int = 5) -> list[str]:
+    source = " ".join(
+        [
+            str(getattr(params, "news_query", "") or ""),
+            str(getattr(params, "video_subject", "") or ""),
+            video_script or "",
+        ]
+    )
+    source = re.sub(r"https?://\S+", " ", source)
+    source = re.sub(r"[^A-Za-z0-9\s'-]", " ", source)
+    stop_words = {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "for",
+        "from",
+        "has",
+        "have",
+        "in",
+        "is",
+        "it",
+        "of",
+        "on",
+        "or",
+        "that",
+        "the",
+        "this",
+        "to",
+        "was",
+        "were",
+        "with",
+        "write",
+        "short",
+        "factual",
+        "news",
+        "voiceover",
+        "english",
+        "headline",
+        "story",
+        "source",
+        "material",
+        "script",
+        "video",
+    }
+    words = [
+        word.strip("'-").lower()
+        for word in source.split()
+        if len(word.strip("'-")) > 2
+    ]
+    words = [word for word in words if word not in stop_words]
+
+    terms = []
+    proper_phrases = re.findall(r"\b[A-Z][A-Za-z0-9'-]*(?:\s+[A-Z][A-Za-z0-9'-]*){0,2}", source)
+    for phrase in proper_phrases:
+        cleaned = " ".join(phrase.split())
+        if len(cleaned) > 2 and cleaned.lower() not in stop_words:
+            terms.append(cleaned)
+
+    for index, word in enumerate(words):
+        phrase = word
+        if index + 1 < len(words):
+            phrase = f"{word} {words[index + 1]}"
+        terms.append(phrase)
+
+    deduped = []
+    seen = set()
+    for term in terms:
+        normalized = " ".join(term.split()).strip()
+        key = normalized.lower()
+        if not normalized or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(normalized)
+        if len(deduped) >= amount:
+            break
+
+    return deduped or ["news report"]
 
 
 def save_script_data(task_id, video_script, video_terms, params):

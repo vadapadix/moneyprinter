@@ -11,6 +11,7 @@ from app.models.schema import PublishPrivacy, VideoConcatMode, VideoParams
 from app.services import (
     llm,
     material,
+    news_pipeline,
     social_metadata,
     social_publisher,
     subtitle,
@@ -183,6 +184,37 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             )
             return None
         return [material_info.url for material_info in materials]
+    if params.video_source == "news":
+        logger.info("\n\n## preparing news video materials")
+        direct_materials = news_pipeline.build_materials_from_assets(
+            params.news_media_assets or []
+        )
+        video_paths = []
+        for item in direct_materials:
+            saved_video_path = material.save_video(item.url, utils.task_dir(task_id))
+            if saved_video_path:
+                video_paths.append(saved_video_path)
+        if video_paths:
+            return video_paths
+
+        fallback_source = config.app.get("news_stock_fallback_source", "pexels")
+        logger.info(
+            f"no direct news video assets found, falling back to {fallback_source}"
+        )
+        downloaded_videos = material.download_videos(
+            task_id=task_id,
+            search_terms=video_terms or [params.video_subject],
+            source=fallback_source,
+            video_aspect=params.video_aspect,
+            video_contact_mode=params.video_concat_mode,
+            audio_duration=audio_duration * params.video_count,
+            max_clip_duration=params.video_clip_duration,
+        )
+        if not downloaded_videos:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("failed to download fallback videos for news story")
+            return None
+        return downloaded_videos
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         downloaded_videos = material.download_videos(
@@ -257,6 +289,13 @@ def generate_final_videos(
 def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
+
+    if params.video_source == "news":
+        news_story = news_pipeline.prepare_news_context(params)
+        if not news_story:
+            sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            logger.error("failed to find a news story for the requested query")
+            return
 
     # 1. Generate script
     video_script = generate_script(task_id, params)

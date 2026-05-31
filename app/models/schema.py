@@ -182,6 +182,12 @@ class VideoParams(BaseModel):
     video_materials: Optional[List[MaterialInfo]] = (
         None  # Materials used to generate the video
     )
+    news_source: Optional[str] = ""
+    news_query: Optional[str] = ""
+    news_country: Optional[str] = ""
+    news_language: Optional[str] = ""
+    news_category: Optional[str] = None
+    news_media_assets: Optional[List[dict[str, Any]]] = None
     
     custom_audio_file: Optional[str] = None  # Custom audio file path, will ignore video_script and disable subtitle
     video_language: Optional[str] = ""  # auto detect

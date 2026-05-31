@@ -30,6 +30,19 @@ class NewsPipelineTest(unittest.TestCase):
         self.assertEqual(materials[0].url, "https://example.com/clip.mp4")
         self.assertEqual(materials[0].duration, 9)
 
+    def test_enrich_story_media_appends_web_videos(self):
+        story = NewsStory(title="Story", summary="See https://example.com/story")
+        asset = NewsMediaAsset(
+            provider="web",
+            url="https://cdn.example.com/news.mp4",
+            media_type="video",
+        )
+
+        with mock.patch.object(news_pipeline.web_media, "discover_story_media", return_value=[asset]):
+            enriched = news_pipeline.enrich_story_media(story)
+
+        self.assertEqual(enriched.media[0].url, "https://cdn.example.com/news.mp4")
+
     def test_prepare_news_context_updates_video_params(self):
         params = VideoParams(
             video_source="news",
@@ -96,7 +109,8 @@ class NewsPipelineTest(unittest.TestCase):
 
         self.assertIn("headline is the angle", subject)
         self.assertIn("Use only facts found in the source material", subject)
-        self.assertIn("keep the script short instead of padding it", subject)
+        self.assertIn("90-130 spoken words", subject)
+        self.assertIn("keep the script shorter instead of padding it", subject)
         self.assertIn("Drone strike hits Romanian border town", subject)
 
 

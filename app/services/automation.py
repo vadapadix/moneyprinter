@@ -91,6 +91,7 @@ def _configured_voice_name() -> str:
 def build_video_params_from_news(
     request: NewsAutomationRunRequest, story: NewsStory
 ) -> VideoParams:
+    story = news_pipeline.enrich_story_media(story)
     source_context = news_pipeline.build_source_context(story)
     output_language = _news_output_language(request)
     platforms = request.platforms or _configured_platforms()
@@ -120,9 +121,11 @@ def build_video_params_from_news(
             "published_at": story.published_at,
             "keywords": story.keywords,
         },
-        paragraph_number=1,
+        paragraph_number=int(config.app.get("news_script_paragraphs", 2)),
         voice_name=_configured_voice_name(),
-        voice_rate=float(config.ui.get("voice_rate", config.app.get("voice_rate", 1.0))),
+        voice_rate=float(
+            config.app.get("news_voice_rate", 1.18)
+        ),
         bgm_type=config.ui.get("bgm_type", config.app.get("bgm_type", "random")),
         font_name=config.ui.get("font_name", config.app.get("font_name", "STHeitiMedium.ttc")),
         font_size=int(config.ui.get("font_size", config.app.get("font_size", 60))),

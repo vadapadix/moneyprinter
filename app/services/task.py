@@ -544,6 +544,8 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
                     continue
                 enabled_platforms.append(platform)
             platforms = enabled_platforms
+        if not platforms:
+            logger.warning("No enabled social platforms available for auto-publish")
         for video_path in final_video_paths:
             for result in social_publisher.publish_video(
                 video_path=video_path,

@@ -67,13 +67,14 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
         task_params = task_info["params"]
         with st.spinner(f"Generating news video: {story.title}"):
             result = tm.start(task_id=task_id, params=task_params)
+        publish_results = result.get("publish_results") if result else []
         results.append(
             {
                 "task_id": task_id,
                 "story": story.model_dump(),
                 "success": bool(result and result.get("videos")),
                 "videos": result.get("videos", []) if result else [],
-                "publish_results": result.get("publish_results") if result else None,
+                "publish_results": publish_results or [],
             }
         )
 
@@ -860,7 +861,7 @@ with st.container(border=True):
                     country=news_country,
                     language=news_language,
                     limit=int(news_limit),
-                    platforms=params.social_platforms or [],
+                    platforms=params.social_platforms or None,
                     auto_publish=True,
                     privacy=params.social_privacy or get_social_privacy_setting(),
                     tiktok_direct_post_consent=True,
@@ -1022,7 +1023,7 @@ with middle_panel:
                             category=params.news_category,
                             limit=int(config.app.get("news_auto_limit", 1)),
                             video_language=params.video_language,
-                            platforms=params.social_platforms or [],
+                            platforms=params.social_platforms or None,
                             auto_publish=True,
                             privacy=params.social_privacy or get_social_privacy_setting(),
                             tiktok_direct_post_consent=True,

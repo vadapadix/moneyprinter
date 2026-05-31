@@ -18,6 +18,7 @@ if root_dir not in sys.path:
 from app.config import config
 from app.models.schema import (
     MaterialInfo,
+    NewsAutomationRunRequest,
     PublishPrivacy,
     SocialMetadata,
     SocialPlatform,
@@ -26,6 +27,7 @@ from app.models.schema import (
     VideoParams,
     VideoTransitionMode,
 )
+from app.services import automation as automation_service
 from app.services import llm, voice
 from app.services import task as tm
 from app.services import youtube_oauth
@@ -44,6 +46,42 @@ def get_api_key():
     """Get API key for authentication (if needed)"""
     # This is a placeholder - implement actual authentication if required
     return ""  # Add your authentication logic here
+
+
+def get_social_privacy_setting() -> PublishPrivacy:
+    try:
+        return PublishPrivacy(config.app.get("social_privacy", "private"))
+    except ValueError:
+        return PublishPrivacy.private
+
+
+def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
+    """Run news automation from Streamlit without requiring the FastAPI server."""
+    prepared = automation_service.prepare_news_run(request)
+    tasks = prepared.get("tasks", [])
+    results = []
+
+    for task_info in tasks:
+        task_id = task_info["task_id"]
+        story = task_info["story"]
+        task_params = task_info["params"]
+        with st.spinner(f"Generating news video: {story.title}"):
+            result = tm.start(task_id=task_id, params=task_params)
+        results.append(
+            {
+                "task_id": task_id,
+                "story": story.model_dump(),
+                "success": bool(result and result.get("videos")),
+                "videos": result.get("videos", []) if result else [],
+                "publish_results": result.get("publish_results") if result else None,
+            }
+        )
+
+    return {
+        "run_id": prepared.get("run_id"),
+        "queued_count": len(tasks),
+        "results": results,
+    }
 
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
@@ -815,33 +853,26 @@ with st.container(border=True):
     if st.button("Find news, generate videos, and publish", key="top_auto_news_publish", type="primary"):
         config.save_config()
         try:
-            response = requests.post(
-                f"{get_base_url()}/api/v1/automation/news/runs",
-                json={
-                    "source": news_source,
-                    "query": news_query,
-                    "country": news_country,
-                    "language": news_language,
-                    "limit": int(news_limit),
-                    "platforms": [
-                        platform.value for platform in (params.social_platforms or [])
-                    ],
-                    "auto_publish": True,
-                    "privacy": params.social_privacy.value
-                    if params.social_privacy
-                    else config.app.get("social_privacy", "private"),
-                    "tiktok_direct_post_consent": True,
-                },
-                timeout=30,
+            payload = run_news_automation_inline(
+                NewsAutomationRunRequest(
+                    source=news_source,
+                    query=news_query,
+                    country=news_country,
+                    language=news_language,
+                    limit=int(news_limit),
+                    platforms=params.social_platforms or [],
+                    auto_publish=True,
+                    privacy=params.social_privacy or get_social_privacy_setting(),
+                    tiktok_direct_post_consent=True,
+                )
             )
-            if response.ok:
-                payload = response.json()
+            if payload["queued_count"]:
                 st.success(
-                    f"News automation started: {payload.get('data', {}).get('queued_count', 0)} tasks queued"
+                    f"News automation completed: {payload['queued_count']} videos processed"
                 )
                 st.json(payload)
             else:
-                st.error(response.text)
+                st.warning("No news stories found for this query/source.")
         except Exception as exc:
             st.error(f"Failed to start news automation: {str(exc)}")
 
@@ -982,36 +1013,28 @@ with middle_panel:
             config.app["news_category"] = params.news_category or ""
             if st.button("Auto-run news and publish", key="auto_news_publish"):
                 try:
-                    response = requests.post(
-                        f"{get_base_url()}/api/v1/automation/news/runs",
-                        json={
-                            "source": params.news_source,
-                            "query": params.news_query,
-                            "country": params.news_country,
-                            "language": params.news_language,
-                            "category": params.news_category,
-                            "limit": int(config.app.get("news_auto_limit", 1)),
-                            "video_language": params.video_language,
-                            "platforms": [
-                                platform.value
-                                for platform in (params.social_platforms or [])
-                            ],
-                            "auto_publish": True,
-                            "privacy": params.social_privacy.value
-                            if params.social_privacy
-                            else config.app.get("social_privacy", "private"),
-                            "tiktok_direct_post_consent": True,
-                        },
-                        timeout=30,
+                    payload = run_news_automation_inline(
+                        NewsAutomationRunRequest(
+                            source=params.news_source,
+                            query=params.news_query,
+                            country=params.news_country,
+                            language=params.news_language,
+                            category=params.news_category,
+                            limit=int(config.app.get("news_auto_limit", 1)),
+                            video_language=params.video_language,
+                            platforms=params.social_platforms or [],
+                            auto_publish=True,
+                            privacy=params.social_privacy or get_social_privacy_setting(),
+                            tiktok_direct_post_consent=True,
+                        )
                     )
-                    if response.ok:
-                        payload = response.json()
+                    if payload["queued_count"]:
                         st.success(
-                            f"News automation started: {payload.get('data', {}).get('queued_count', 0)} tasks queued"
+                            f"News automation completed: {payload['queued_count']} videos processed"
                         )
                         st.json(payload)
                     else:
-                        st.error(response.text)
+                        st.warning("No news stories found for this query/source.")
                 except Exception as exc:
                     st.error(f"Failed to start news automation: {str(exc)}")
 

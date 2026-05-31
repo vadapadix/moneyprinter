@@ -9,6 +9,7 @@ from app.models.schema import (
     VideoParams,
 )
 from app.services import news_pipeline, news_sources, trends
+from app.services.social_platform_utils import platform_values
 from app.utils import utils
 
 
@@ -41,7 +42,7 @@ def prepare_run(request: AutomationRunRequest) -> dict:
                 "params": params,
                 "trend": candidate,
                 "auto_publish": request.auto_publish,
-                "platforms": [platform.value for platform in request.platforms],
+                "platforms": platform_values(request.platforms),
             }
         )
 
@@ -159,9 +160,7 @@ def prepare_news_run(request: NewsAutomationRunRequest) -> dict:
                 "params": params,
                 "story": story,
                 "auto_publish": params.social_auto_publish,
-                "platforms": [
-                    platform.value for platform in (params.social_platforms or [])
-                ],
+                "platforms": platform_values(params.social_platforms),
             }
         )
 

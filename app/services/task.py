@@ -20,6 +20,7 @@ from app.services import (
     voice,
     youtube_oauth,
 )
+from app.services.social_platform_utils import platform_values
 from app.services import state as sm
 from app.utils import utils
 
@@ -413,9 +414,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         video_subject=params.video_subject,
         video_script=video_script,
         video_terms=video_terms,
-        platforms=[
-            platform.value for platform in params.social_platforms
-        ] if params.social_platforms else config.app.get(
+        platforms=platform_values(params.social_platforms) if params.social_platforms else config.app.get(
             "social_platforms", []
         ),
         language=params.video_language,
@@ -441,11 +440,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         except ValueError:
             logger.warning("invalid social_privacy config, falling back to private")
             privacy = PublishPrivacy.private
-        platforms = (
-            [platform.value for platform in params.social_platforms]
-            if params.social_platforms
-            else None
-        )
+        platforms = platform_values(params.social_platforms) if params.social_platforms else None
         if platforms:
             enabled_platforms = []
             for platform in platforms:

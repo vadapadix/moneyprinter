@@ -17,6 +17,7 @@ from app.services import automation, social_metadata, social_publisher, state as
 from app.services import news_sources
 from app.services import task as tm
 from app.services import trends
+from app.services.social_platform_utils import platform_values
 from app.utils import utils
 
 router = new_router()
@@ -186,7 +187,7 @@ def publish_task(
                 (task.get("trend_candidate") or {}).get("topic", ""), task.get("terms", [])
             )
 
-    platforms = [platform.value for platform in body.platforms] if body.platforms else None
+    platforms = platform_values(body.platforms) if body.platforms else None
     results = social_publisher.publish_existing_task(
         task_id=task_id,
         metadata=metadata,

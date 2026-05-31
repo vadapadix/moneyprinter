@@ -771,6 +771,80 @@ with st.container(border=True):
             ],
         )
 
+with st.container(border=True):
+    st.write("News automation")
+    news_sources = ["telethon", "newsdata", "guardian", "telegram"]
+    saved_news_source = config.app.get("news_source", "telethon")
+    if saved_news_source not in news_sources:
+        saved_news_source = "telethon"
+    news_cols = st.columns([1, 2, 1, 1])
+    news_source = news_cols[0].selectbox(
+        "Source",
+        options=news_sources,
+        index=news_sources.index(saved_news_source),
+        key="top_news_source",
+    )
+    news_query = news_cols[1].text_input(
+        "Search query",
+        value=config.app.get("news_query", ""),
+        key="top_news_query",
+    ).strip()
+    news_limit = news_cols[2].number_input(
+        "Videos",
+        min_value=1,
+        max_value=10,
+        value=int(config.app.get("news_auto_limit", 1)),
+        step=1,
+        key="top_news_limit",
+    )
+    news_country = news_cols[3].text_input(
+        "Country",
+        value=config.app.get("news_country", "us"),
+        key="top_news_country",
+    ).strip()
+    news_language = st.text_input(
+        "Language",
+        value=config.app.get("news_language", "en"),
+        key="top_news_language",
+    ).strip()
+    config.app["news_source"] = news_source
+    config.app["news_query"] = news_query
+    config.app["news_auto_limit"] = int(news_limit)
+    config.app["news_country"] = news_country
+    config.app["news_language"] = news_language
+    if st.button("Find news, generate videos, and publish", key="top_auto_news_publish", type="primary"):
+        config.save_config()
+        try:
+            response = requests.post(
+                f"{get_base_url()}/api/v1/automation/news/runs",
+                json={
+                    "source": news_source,
+                    "query": news_query,
+                    "country": news_country,
+                    "language": news_language,
+                    "limit": int(news_limit),
+                    "platforms": [
+                        platform.value for platform in (params.social_platforms or [])
+                    ],
+                    "auto_publish": True,
+                    "privacy": params.social_privacy.value
+                    if params.social_privacy
+                    else config.app.get("social_privacy", "private"),
+                    "tiktok_direct_post_consent": True,
+                },
+                timeout=30,
+            )
+            if response.ok:
+                payload = response.json()
+                st.success(
+                    f"News automation started: {payload.get('data', {}).get('queued_count', 0)} tasks queued"
+                )
+                st.json(payload)
+            else:
+                st.error(response.text)
+        except Exception as exc:
+            st.error(f"Failed to start news automation: {str(exc)}")
+
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
 left_panel = panel[0]

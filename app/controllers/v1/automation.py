@@ -7,6 +7,7 @@ from app.models import const
 from app.models.exception import HttpException
 from app.models.schema import (
     AutomationRunRequest,
+    NewsAutomationRunRequest,
     NewsQueryRequest,
     PublishRequest,
     SocialMetadata,
@@ -75,6 +76,46 @@ def create_automation_run(request: Request, body: AutomationRunRequest):
             "run_id": prepared["run_id"],
             "tasks": queued_tasks,
             "candidate_count": len(prepared["candidates"]),
+        },
+    )
+
+
+@router.post("/automation/news/runs", summary="Create and publish videos from news stories")
+def create_news_automation_run(request: Request, body: NewsAutomationRunRequest):
+    prepared = automation.prepare_news_run(body)
+    queued_tasks = []
+
+    for task_info in prepared["tasks"]:
+        task_id = task_info["task_id"]
+        story = task_info["story"]
+        params = task_info["params"]
+        sm.state.update_task(
+            task_id,
+            state=const.TASK_STATE_PROCESSING,
+            progress=0,
+            automation_run_id=prepared["run_id"],
+            news_story=story.model_dump(),
+            social_auto_publish=params.social_auto_publish,
+        )
+        video_controller.task_manager.add_task(
+            tm.start, task_id=task_id, params=params, stop_at="video"
+        )
+        queued_tasks.append(
+            {
+                "task_id": task_id,
+                "story": story.model_dump(),
+                "params": params.model_dump(mode="json"),
+            }
+        )
+
+    return utils.get_response(
+        200,
+        {
+            "run_id": prepared["run_id"],
+            "query": prepared["query"].model_dump(),
+            "tasks": queued_tasks,
+            "story_count": len(prepared["stories"]),
+            "queued_count": len(queued_tasks),
         },
     )
 

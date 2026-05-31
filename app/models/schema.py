@@ -137,6 +137,20 @@ class AutomationRunRequest(BaseModel):
     review_required: bool = True
 
 
+class NewsAutomationRunRequest(BaseModel):
+    source: str = "config"
+    query: str = ""
+    country: str = ""
+    language: str = ""
+    category: Optional[str] = None
+    limit: int = 1
+    video_language: Optional[str] = ""
+    platforms: Optional[List[SocialPlatform]] = None
+    auto_publish: Optional[bool] = None
+    privacy: Optional[PublishPrivacy] = None
+    tiktok_direct_post_consent: bool = True
+
+
 class PublishRequest(BaseModel):
     platforms: Optional[List[SocialPlatform]] = None
     metadata: Optional[SocialMetadata] = None

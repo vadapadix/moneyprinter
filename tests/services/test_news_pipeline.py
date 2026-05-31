@@ -61,6 +61,27 @@ class NewsPipelineTest(unittest.TestCase):
         self.assertEqual(params.news_source_context["source_url"], "https://news.example/story")
         self.assertEqual(params.news_media_assets[0]["url"], "https://news.example/clip.mp4")
 
+    def test_prepare_news_context_reuses_existing_context(self):
+        params = VideoParams(
+            video_subject="",
+            video_source="news",
+            news_source_context={
+                "provider": "telethon",
+                "title": "Existing story",
+                "summary": "Already selected",
+                "source_url": "https://t.me/demo/1",
+                "media": [],
+            },
+        )
+
+        with mock.patch.object(news_pipeline.news_sources, "search") as search_mock:
+            story = news_pipeline.prepare_news_context(params)
+
+        search_mock.assert_not_called()
+        self.assertEqual(story.title, "Existing story")
+        self.assertEqual(params.video_subject, "Existing story")
+        self.assertIn("Already selected", params.video_script)
+
 
 if __name__ == "__main__":
     unittest.main()

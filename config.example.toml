@@ -332,6 +332,7 @@ news_country = "us"
 news_language = "en"
 news_category = ""
 news_stock_fallback_source = "pexels"
+news_auto_limit = 1
 
 # Telegram Bot API token from @BotFather. Add the bot to each channel you want
 # to read, then list allowed numeric IDs or public usernames here.

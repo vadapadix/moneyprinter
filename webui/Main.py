@@ -906,6 +906,40 @@ with middle_panel:
             config.app["news_country"] = params.news_country
             config.app["news_language"] = params.news_language
             config.app["news_category"] = params.news_category or ""
+            if st.button("Auto-run news and publish", key="auto_news_publish"):
+                try:
+                    response = requests.post(
+                        f"{get_base_url()}/api/v1/automation/news/runs",
+                        json={
+                            "source": params.news_source,
+                            "query": params.news_query,
+                            "country": params.news_country,
+                            "language": params.news_language,
+                            "category": params.news_category,
+                            "limit": int(config.app.get("news_auto_limit", 1)),
+                            "video_language": params.video_language,
+                            "platforms": [
+                                platform.value
+                                for platform in (params.social_platforms or [])
+                            ],
+                            "auto_publish": True,
+                            "privacy": params.social_privacy.value
+                            if params.social_privacy
+                            else config.app.get("social_privacy", "private"),
+                            "tiktok_direct_post_consent": True,
+                        },
+                        timeout=30,
+                    )
+                    if response.ok:
+                        payload = response.json()
+                        st.success(
+                            f"News automation started: {payload.get('data', {}).get('queued_count', 0)} tasks queued"
+                        )
+                        st.json(payload)
+                    else:
+                        st.error(response.text)
+                except Exception as exc:
+                    st.error(f"Failed to start news automation: {str(exc)}")
 
         selected_index = st.selectbox(
             tr("Video Concat Mode"),

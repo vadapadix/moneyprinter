@@ -2,7 +2,7 @@ import unittest
 from unittest import mock
 
 from app.controllers.v1 import automation
-from app.models.schema import NewsQueryRequest, NewsStory
+from app.models.schema import NewsAutomationRunRequest, NewsQueryRequest, NewsStory
 
 
 class NewsAutomationControllerTest(unittest.TestCase):
@@ -23,6 +23,57 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(response["status"], 200)
         self.assertEqual(response["data"]["stories"][0]["provider"], "newsdata")
         self.assertEqual(response["data"]["stories"][0]["title"], "Market update")
+
+    def test_news_automation_queues_story_tasks(self):
+        story = NewsStory(
+            provider="telethon",
+            title="Telegram update",
+            summary="A public post",
+            url="https://t.me/demo/1",
+        )
+        added_tasks = []
+
+        with mock.patch.object(
+            automation.automation, "prepare_news_run"
+        ) as prepare_mock, mock.patch.object(
+            automation.video_controller.task_manager, "add_task"
+        ) as add_task_mock:
+            prepare_mock.return_value = {
+                "run_id": "run-1",
+                "query": NewsQueryRequest(source="telethon", query="demo", limit=1),
+                "stories": [story],
+                "tasks": [
+                    {
+                        "task_id": "task-1",
+                        "story": story,
+                        "params": automation.automation.build_video_params_from_news(
+                            NewsAutomationRunRequest(
+                                source="telethon",
+                                query="demo",
+                                auto_publish=True,
+                            ),
+                            story,
+                        ),
+                    }
+                ],
+            }
+            add_task_mock.side_effect = lambda *args, **kwargs: added_tasks.append(
+                (args, kwargs)
+            )
+
+            response = automation.create_news_automation_run(
+                request=None,
+                body=NewsAutomationRunRequest(
+                    source="telethon",
+                    query="demo",
+                    auto_publish=True,
+                ),
+            )
+
+        self.assertEqual(response["status"], 200)
+        self.assertEqual(response["data"]["queued_count"], 1)
+        self.assertEqual(response["data"]["tasks"][0]["story"]["title"], "Telegram update")
+        self.assertEqual(len(added_tasks), 1)
 
 
 if __name__ == "__main__":

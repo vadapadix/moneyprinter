@@ -32,6 +32,22 @@ def build_source_context(story: NewsStory) -> dict:
     }
 
 
+def story_from_source_context(source_context: dict) -> NewsStory:
+    media = source_context.get("media") or []
+    return NewsStory(
+        provider=source_context.get("provider", ""),
+        title=source_context.get("title", ""),
+        summary=source_context.get("summary", ""),
+        url=source_context.get("source_url", ""),
+        published_at=source_context.get("published_at", ""),
+        language=source_context.get("language", ""),
+        country=source_context.get("country", ""),
+        category=source_context.get("category", ""),
+        keywords=source_context.get("keywords", []),
+        media=[NewsMediaAsset(**asset) for asset in media],
+    )
+
+
 def query_from_params(params) -> NewsQueryRequest:
     return NewsQueryRequest(
         source=params.news_source or config.app.get("news_source", "newsdata"),
@@ -48,6 +64,24 @@ def query_from_params(params) -> NewsQueryRequest:
 def prepare_news_context(params) -> NewsStory | None:
     if params.video_source != "news":
         return None
+
+    if params.news_source_context:
+        story = story_from_source_context(params.news_source_context)
+        params.news_media_assets = params.news_media_assets or [
+            asset.model_dump() for asset in story.media
+        ]
+        params.trend_context = {
+            "source": story.provider,
+            "topic": story.title,
+            "url": story.url,
+            "published_at": story.published_at,
+            "keywords": story.keywords,
+        }
+        if story.title:
+            params.video_subject = story.title
+        if not params.video_script and (story.title or story.summary):
+            params.video_script = f"{story.title}\n\n{story.summary}".strip()
+        return story
 
     query = query_from_params(params)
     stories = news_sources.search(query.source, query)

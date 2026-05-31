@@ -15,6 +15,10 @@ def get_provider(source: str):
         from app.services.news_sources.telegram import TelegramProvider
 
         return TelegramProvider()
+    if source == "telethon":
+        from app.services.news_sources.telethon_source import TelethonProvider
+
+        return TelethonProvider()
     return None
 
 

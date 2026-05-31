@@ -878,7 +878,7 @@ with middle_panel:
             )
 
         if params.video_source == "news":
-            news_sources = ["newsdata", "guardian", "telegram"]
+            news_sources = ["newsdata", "guardian", "telegram", "telethon"]
             saved_news_source = config.app.get("news_source", "newsdata")
             if saved_news_source not in news_sources:
                 saved_news_source = "newsdata"
@@ -1383,6 +1383,13 @@ if start_button:
             or not config.app.get("telegram_channel_ids", [])
         ):
             st.error("Please configure telegram_bot_token and telegram_channel_ids in config.toml")
+            scroll_to_bottom()
+            st.stop()
+        if params.news_source == "telethon" and (
+            not config.app.get("telegram_api_id", "")
+            or not config.app.get("telegram_api_hash", "")
+        ):
+            st.error("Please configure telegram_api_id and telegram_api_hash in config.toml")
             scroll_to_bottom()
             st.stop()
 

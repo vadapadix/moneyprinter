@@ -319,3 +319,21 @@ tiktok_chunk_size = 10000000
 tiktok_disable_duet = false
 tiktok_disable_comment = false
 tiktok_disable_stitch = false
+
+########## News video sources
+# NewsData.io API key: https://newsdata.io/register
+newsdata_api_key = ""
+# Guardian Open Platform developer key: https://open-platform.theguardian.com/access
+guardian_api_key = ""
+news_source = "newsdata" # "newsdata", "guardian", or "telegram"
+news_query = ""
+news_country = "us"
+news_language = "en"
+news_category = ""
+news_stock_fallback_source = "pexels"
+
+# Telegram Bot API token from @BotFather. Add the bot to each channel you want
+# to read, then list allowed numeric IDs or public usernames here.
+telegram_bot_token = ""
+telegram_channel_ids = [] # e.g. ["@your_public_channel", "-1001234567890"]
+telegram_max_messages = 20

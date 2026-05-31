@@ -7,11 +7,29 @@ from app.config import config
 from app.models.schema import NewsQueryRequest, NewsStory
 
 
-def _configured_channel_ids() -> set[str]:
+def _configured_channel_refs() -> set[str]:
     channel_ids = config.app.get("telegram_channel_ids", [])
     if isinstance(channel_ids, str):
         channel_ids = [value.strip() for value in channel_ids.split(",")]
-    return {str(value).strip() for value in channel_ids if str(value).strip()}
+    refs = set()
+    for value in channel_ids:
+        ref = str(value).strip()
+        if ref:
+            refs.add(ref.lower())
+            refs.add(ref.lstrip("@").lower())
+    return refs
+
+
+def _chat_refs(chat: dict) -> set[str]:
+    chat_id = str(chat.get("id") or "").strip()
+    username = str(chat.get("username") or "").strip()
+    refs = set()
+    if chat_id:
+        refs.add(chat_id.lower())
+    if username:
+        refs.add(username.lower())
+        refs.add(f"@{username}".lower())
+    return refs
 
 
 def _message_text(message: dict) -> str:
@@ -23,11 +41,11 @@ class TelegramProvider:
 
     def search(self, query: NewsQueryRequest) -> list[NewsStory]:
         token = config.app.get("telegram_bot_token", "").strip()
-        allowed_channel_ids = _configured_channel_ids()
+        allowed_channel_refs = _configured_channel_refs()
         if not token:
             logger.warning("telegram_bot_token is not configured")
             return []
-        if not allowed_channel_ids:
+        if not allowed_channel_refs:
             logger.warning("telegram_channel_ids is not configured")
             return []
 
@@ -56,8 +74,7 @@ class TelegramProvider:
         for update in payload.get("result", []):
             message = update.get("channel_post") or {}
             chat = message.get("chat") or {}
-            chat_id = str(chat.get("id") or "").strip()
-            if chat_id not in allowed_channel_ids:
+            if not (_chat_refs(chat) & allowed_channel_refs):
                 continue
 
             text = _message_text(message)

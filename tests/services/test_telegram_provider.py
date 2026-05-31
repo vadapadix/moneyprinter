@@ -15,7 +15,7 @@ class FakeTelegramResponse:
             "result": [
                 {
                     "channel_post": {
-                        "chat": {"id": -100123, "title": "Demo News"},
+                        "chat": {"id": -100123, "title": "Demo News", "username": "demo_news"},
                         "date": 1780000000,
                         "text": "Breaking: demo event happened\nMore context",
                     }
@@ -37,7 +37,7 @@ class TelegramProviderTest(unittest.TestCase):
             "app.services.news_sources.telegram.config.app",
             {
                 "telegram_bot_token": "token",
-                "telegram_channel_ids": ["-100123"],
+                "telegram_channel_ids": ["@demo_news"],
                 "telegram_max_messages": 20,
             },
             clear=False,

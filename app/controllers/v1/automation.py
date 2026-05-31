@@ -7,11 +7,13 @@ from app.models import const
 from app.models.exception import HttpException
 from app.models.schema import (
     AutomationRunRequest,
+    NewsQueryRequest,
     PublishRequest,
     SocialMetadata,
     TrendQueryRequest,
 )
 from app.services import automation, social_metadata, social_publisher, state as sm
+from app.services import news_sources
 from app.services import task as tm
 from app.services import trends
 from app.utils import utils
@@ -29,6 +31,14 @@ def discover_trends(request: Request, body: TrendQueryRequest):
     )
     return utils.get_response(
         200, {"trends": [candidate.model_dump() for candidate in candidates]}
+    )
+
+
+@router.post("/news/search", summary="Search news stories")
+def search_news(request: Request, body: NewsQueryRequest):
+    stories = news_sources.search(body.source, body)
+    return utils.get_response(
+        200, {"stories": [story.model_dump() for story in stories]}
     )
 
 

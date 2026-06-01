@@ -116,6 +116,7 @@ def create_news_automation_run(request: Request, body: NewsAutomationRunRequest)
             "query": prepared["query"].model_dump(),
             "tasks": queued_tasks,
             "story_count": len(prepared["stories"]),
+            "ranked_story_count": len(prepared.get("ranked_stories", [])),
             "queued_count": len(queued_tasks),
         },
     )

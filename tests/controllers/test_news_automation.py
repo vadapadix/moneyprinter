@@ -135,6 +135,43 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(len(result["tasks"]), 1)
         self.assertEqual(result["tasks"][0]["story"].title, "Fresh story")
 
+    def test_prepare_news_run_ranks_richer_story_before_thin_story(self):
+        thin = NewsStory(
+            provider="newsdata",
+            title="Thin",
+            summary="Tiny",
+            url="https://news.example/thin",
+        )
+        rich = NewsStory(
+            provider="guardian",
+            title="Detailed world update with strong source material",
+            summary="A detailed source summary with enough context for a factual English news short. "
+            * 3,
+            url="https://news.example/rich",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            automation_service.news_history.utils,
+            "storage_dir",
+            lambda sub_dir="", create=False: temp_dir,
+        ), mock.patch.object(
+            automation_service.news_diagnostics.utils,
+            "storage_dir",
+            lambda sub_dir="", create=False: temp_dir,
+        ), mock.patch.object(
+            automation_service.news_sources, "search", return_value=[thin, rich]
+        ), mock.patch.object(
+            automation_service.news_pipeline.web_media,
+            "discover_story_media",
+            return_value=[],
+        ):
+            result = automation_service.prepare_news_run(
+                NewsAutomationRunRequest(source="auto", query="world", limit=1)
+            )
+
+        self.assertEqual(result["tasks"][0]["story"].title, rich.title)
+        self.assertGreater(result["ranked_stories"][0]["score"], result["ranked_stories"][1]["score"])
+
 
 if __name__ == "__main__":
     unittest.main()

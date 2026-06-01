@@ -92,6 +92,7 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
     return {
         "run_id": prepared.get("run_id"),
         "queued_count": len(tasks),
+        "ranked_story_count": len(prepared.get("ranked_stories", [])),
         "results": results,
     }
 

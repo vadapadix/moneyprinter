@@ -8,7 +8,14 @@ from app.models.schema import (
     SocialPlatform,
     VideoParams,
 )
-from app.services import news_diagnostics, news_history, news_pipeline, news_sources, trends
+from app.services import (
+    news_diagnostics,
+    news_history,
+    news_pipeline,
+    news_sources,
+    news_story_quality,
+    trends,
+)
 from app.services.social_platform_utils import platform_values
 from app.utils import utils
 
@@ -156,12 +163,20 @@ def prepare_news_run(request: NewsAutomationRunRequest) -> dict:
         ),
     )
     stories = news_sources.search(source, query)
-    selected_stories = news_history.filter_new_stories(stories, request.limit)
+    ranked_stories = news_story_quality.rank_stories(stories)
+    quality_by_url = {
+        news_history.story_key(item.story): item
+        for item in ranked_stories
+    }
+    selected_stories = news_history.filter_new_stories(
+        [item.story for item in ranked_stories], request.limit
+    )
     tasks = []
     for index, story in enumerate(selected_stories):
         task_id = utils.get_uuid()
         news_history.reserve_story(story, run_id=run_id, task_id=task_id)
         params = build_video_params_from_news(request, story)
+        quality = quality_by_url.get(news_history.story_key(story))
         news_diagnostics.record_event(
             task_id,
             "news_story_reserved",
@@ -173,6 +188,8 @@ def prepare_news_run(request: NewsAutomationRunRequest) -> dict:
             title=story.title,
             url=story.url,
             media_asset_count=len(story.media),
+            quality_score=quality.score if quality else None,
+            quality_reasons=quality.reasons if quality else [],
             auto_publish=params.social_auto_publish,
             platforms=platform_values(params.social_platforms),
         )
@@ -190,6 +207,14 @@ def prepare_news_run(request: NewsAutomationRunRequest) -> dict:
         "run_id": run_id,
         "query": query,
         "stories": stories,
+        "ranked_stories": [
+            {
+                "story": item.story,
+                "score": item.score,
+                "reasons": item.reasons,
+            }
+            for item in ranked_stories
+        ],
         "selected_stories": selected_stories,
         "tasks": tasks,
     }

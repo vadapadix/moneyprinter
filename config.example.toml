@@ -342,6 +342,8 @@ news_story_fetch_multiplier = 3
 news_ytdlp_enabled = true
 news_ytdlp_timeout = 30
 news_ytdlp_format = "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/best"
+news_ytdlp_try_source_url = true
+news_ytdlp_results_per_query = 3
 news_stock_fallback_source = "pexels"
 news_min_clips = 3
 news_video_clip_duration = 5

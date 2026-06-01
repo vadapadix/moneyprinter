@@ -312,11 +312,13 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             requested_count=max(0, min_news_clips - len(video_paths)),
             existing_direct_video_count=len(video_paths),
         )
-        ytdlp_paths = news_video_search.search_and_download(
+        ytdlp_result = news_video_search.search_and_download_report(
             query=search_query,
             save_dir=utils.task_dir(task_id),
             limit=max(0, min_news_clips - len(video_paths)),
+            source_context=params.news_source_context,
         )
+        ytdlp_paths = ytdlp_result.paths
         for ytdlp_path in ytdlp_paths:
             if ytdlp_path not in video_paths:
                 video_paths.append(ytdlp_path)
@@ -327,6 +329,7 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             downloaded_count=len(ytdlp_paths),
             total_video_count=len(video_paths),
             downloaded_paths=ytdlp_paths,
+            attempts=ytdlp_result.attempts,
         )
         if len(video_paths) >= min_news_clips:
             return video_paths

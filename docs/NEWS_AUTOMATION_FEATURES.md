@@ -50,10 +50,12 @@ The media pipeline tries sources in this order:
 1. Direct media attached to the story, especially Telegram/downloaded video assets.
 2. Video URLs discovered from article pages, `og:video`, embedded `<video>` tags, and page metadata.
 3. Web search variants based on headline, provider, and category.
-4. `yt-dlp` search for `{headline} English news video`.
+4. `yt-dlp` source URL extraction, then multiple YouTube search variants around the headline, provider, category, latest footage, official video, and eyewitness video.
 5. Stock fallback from `news_stock_fallback_source`.
 
 The target clip count is controlled by `news_min_clips`.
+
+The `yt-dlp` stage records every attempted target in diagnostics, including downloaded counts, skipped weakly relevant entries, and target errors. This makes it easier to tell whether a task used real source media, YouTube/news footage, or stock fallback.
 
 ## 6. Social Metadata
 

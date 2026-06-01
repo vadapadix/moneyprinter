@@ -18,7 +18,7 @@ class FakeYoutubeDL:
         return False
 
     def extract_info(self, target, download=True):
-        self.options["target"] = target
+        self.options.setdefault("targets", []).append(target)
         path = os.path.join(
             os.path.dirname(self.options["outtmpl"]),
             "downloaded-news-video.mp4",
@@ -30,6 +30,7 @@ class FakeYoutubeDL:
                 {
                     "id": "abc123",
                     "ext": "mp4",
+                    "title": "major news headline footage",
                     "requested_downloads": [{"filepath": path}],
                 }
             ]
@@ -53,6 +54,30 @@ class NewsVideoSearchTest(unittest.TestCase):
 
         self.assertEqual(len(paths), 1)
         self.assertTrue(paths[0].endswith("downloaded-news-video.mp4"))
+
+    def test_search_and_download_report_tries_source_url_first(self):
+        fake_module = types.SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+        captured = {}
+
+        class CapturingYoutubeDL(FakeYoutubeDL):
+            def __init__(self, options):
+                super().__init__(options)
+                captured["options"] = options
+
+        fake_module.YoutubeDL = CapturingYoutubeDL
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            result = news_video_search.search_and_download_report(
+                "major news headline",
+                save_dir=temp_dir,
+                limit=1,
+                source_context={"source_url": "https://news.example/story"},
+            )
+
+        self.assertEqual(result.paths[0].split(os.sep)[-1], "downloaded-news-video.mp4")
+        self.assertEqual(captured["options"]["targets"][0], "https://news.example/story")
+        self.assertEqual(result.attempts[0]["kind"], "source_url")
 
     def test_search_and_download_returns_empty_without_dependency(self):
         with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
@@ -88,9 +113,55 @@ class NewsVideoSearchTest(unittest.TestCase):
             )
 
         self.assertEqual(
-            captured["options"]["target"],
+            captured["options"]["targets"][0],
             "ytsearch1:major news headline English news video",
         )
+
+    def test_search_report_skips_irrelevant_youtube_entries_and_tries_next_variant(self):
+        calls = []
+
+        class VariantYoutubeDL(FakeYoutubeDL):
+            def extract_info(self, target, download=True):
+                calls.append(target)
+                dirname = os.path.dirname(self.options["outtmpl"])
+                if len(calls) == 1:
+                    path = os.path.join(dirname, "wrong.mp4")
+                    with open(path, "wb") as handle:
+                        handle.write(b"video")
+                    return {
+                        "entries": [
+                            {
+                                "title": "cooking show recap",
+                                "requested_downloads": [{"filepath": path}],
+                            }
+                        ]
+                    }
+
+                path = os.path.join(dirname, "relevant.mp4")
+                with open(path, "wb") as handle:
+                    handle.write(b"video")
+                return {
+                    "entries": [
+                        {
+                            "title": "major news headline official footage",
+                            "requested_downloads": [{"filepath": path}],
+                        }
+                    ]
+                }
+
+        fake_module = types.SimpleNamespace(YoutubeDL=VariantYoutubeDL)
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            result = news_video_search.search_and_download_report(
+                "major news headline",
+                save_dir=temp_dir,
+                limit=1,
+            )
+
+        self.assertTrue(result.paths[0].endswith("relevant.mp4"))
+        self.assertGreaterEqual(len(calls), 2)
+        self.assertEqual(result.attempts[0]["skipped_irrelevant_count"], 1)
 
 
 if __name__ == "__main__":

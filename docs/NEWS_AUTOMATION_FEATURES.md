@@ -76,7 +76,19 @@ YouTube uses the official YouTube upload path. TikTok uses the configured TikTok
 
 ## 8. Branding
 
-Every rendered video can receive a `DOLIDE News` watermark. Configure it with:
+Every rendered video can receive a `DOLIDE News` intro overlay during the first seconds and a persistent watermark.
+
+Intro overlay config:
+
+- `brand_intro_enabled`;
+- `brand_intro_text`;
+- `brand_intro_label`;
+- `brand_intro_duration`;
+- `brand_intro_background_opacity`;
+- `brand_intro_font_size`;
+- `brand_intro_headline_font_size`.
+
+Watermark config:
 
 - `brand_watermark_enabled`;
 - `brand_watermark_text`;

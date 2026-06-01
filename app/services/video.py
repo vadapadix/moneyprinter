@@ -88,6 +88,99 @@ def _create_brand_watermark(video_width: int, video_height: int, duration: float
     return clip
 
 
+def _brand_font_path(config_key: str, fallback_key: str = "font_name") -> str:
+    font_name = config.app.get(config_key) or config.app.get(
+        fallback_key, "STHeitiMedium.ttc"
+    )
+    font_path = os.path.join(utils.font_dir(), font_name)
+    if os.name == "nt":
+        font_path = font_path.replace("\\", "/")
+    return font_path
+
+
+def _brand_intro_duration(video_duration: float) -> float:
+    configured = float(config.app.get("brand_intro_duration", 2.2))
+    return max(0.0, min(configured, float(video_duration or 0)))
+
+
+def _create_brand_intro(video_width: int, video_height: int, duration: float, params):
+    if not config.app.get("brand_intro_enabled", True):
+        return []
+
+    intro_duration = _brand_intro_duration(duration)
+    if intro_duration <= 0:
+        return []
+
+    font_path = _brand_font_path("brand_intro_font_name")
+    brand_text = str(config.app.get("brand_intro_text", "DOLIDE News")).strip()
+    label_text = str(config.app.get("brand_intro_label", "NEWS SHORT")).strip()
+    headline = ""
+    if getattr(params, "news_source_context", None):
+        headline = str((params.news_source_context or {}).get("title") or "").strip()
+
+    overlay_color = config.app.get("brand_intro_background_color", "#000000")
+    if isinstance(overlay_color, str) and overlay_color.startswith("#"):
+        overlay_rgb = tuple(
+            int(overlay_color.lstrip("#")[i : i + 2], 16) for i in (0, 2, 4)
+        )
+    else:
+        overlay_rgb = (0, 0, 0)
+
+    clips = []
+    background = ColorClip(
+        size=(video_width, video_height),
+        color=overlay_rgb,
+    ).with_start(0).with_duration(intro_duration)
+    if hasattr(background, "with_opacity"):
+        background = background.with_opacity(
+            float(config.app.get("brand_intro_background_opacity", 0.55))
+        )
+    clips.append(background)
+
+    if label_text:
+        label_clip = TextClip(
+            text=label_text,
+            font=font_path,
+            font_size=int(config.app.get("brand_intro_label_font_size", 30)),
+            color=str(config.app.get("brand_intro_label_color", "#FF4B4B")),
+            stroke_color=str(config.app.get("brand_intro_stroke_color", "#000000")),
+            stroke_width=float(config.app.get("brand_intro_stroke_width", 1)),
+        ).with_start(0).with_duration(intro_duration)
+        clips.append(label_clip.with_position(("center", int(video_height * 0.28))))
+
+    if brand_text:
+        brand_clip = TextClip(
+            text=brand_text,
+            font=font_path,
+            font_size=int(config.app.get("brand_intro_font_size", 78)),
+            color=str(config.app.get("brand_intro_color", "#FFFFFF")),
+            stroke_color=str(config.app.get("brand_intro_stroke_color", "#000000")),
+            stroke_width=float(config.app.get("brand_intro_stroke_width", 3)),
+        ).with_start(0).with_duration(intro_duration)
+        clips.append(brand_clip.with_position(("center", int(video_height * 0.34))))
+
+    if headline:
+        wrapped_headline, _ = wrap_text(
+            headline,
+            max_width=video_width * 0.82,
+            font=font_path,
+            fontsize=int(config.app.get("brand_intro_headline_font_size", 38)),
+        )
+        headline_clip = TextClip(
+            text=wrapped_headline,
+            font=font_path,
+            font_size=int(config.app.get("brand_intro_headline_font_size", 38)),
+            color=str(config.app.get("brand_intro_headline_color", "#FFFFFF")),
+            stroke_color=str(config.app.get("brand_intro_stroke_color", "#000000")),
+            stroke_width=float(config.app.get("brand_intro_stroke_width", 2)),
+            size=(int(video_width * 0.86), None),
+            text_align="center",
+        ).with_start(0).with_duration(intro_duration)
+        clips.append(headline_clip.with_position(("center", int(video_height * 0.52))))
+
+    return clips
+
+
 class SubClippedVideoClip:
     def __init__(self, file_path, start_time=None, end_time=None, width=None, height=None, duration=None):
         self.file_path = file_path
@@ -703,6 +796,18 @@ def generate_video(
             clip = create_text_clip(subtitle_item=item)
             text_clips.append(clip)
         video_clip = CompositeVideoClip([video_clip, *text_clips])
+
+    try:
+        intro_clips = _create_brand_intro(
+            video_width=video_width,
+            video_height=video_height,
+            duration=video_clip.duration,
+            params=params,
+        )
+        if intro_clips:
+            video_clip = CompositeVideoClip([video_clip, *intro_clips])
+    except Exception as e:
+        logger.warning(f"failed to add brand intro: {str(e)}")
 
     try:
         watermark_clip = _create_brand_watermark(

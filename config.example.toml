@@ -348,6 +348,21 @@ news_video_clip_duration = 5
 news_auto_limit = 1
 
 ########## News branding
+brand_intro_enabled = true
+brand_intro_text = "DOLIDE News"
+brand_intro_label = "NEWS SHORT"
+brand_intro_duration = 2.2
+brand_intro_background_color = "#000000"
+brand_intro_background_opacity = 0.55
+brand_intro_font_name = ""
+brand_intro_font_size = 78
+brand_intro_label_font_size = 30
+brand_intro_headline_font_size = 38
+brand_intro_color = "#FFFFFF"
+brand_intro_label_color = "#FF4B4B"
+brand_intro_headline_color = "#FFFFFF"
+brand_intro_stroke_color = "#000000"
+brand_intro_stroke_width = 3
 brand_watermark_enabled = true
 brand_watermark_text = "DOLIDE News"
 brand_watermark_position = "top-right" # top-left, top-right, bottom-left, bottom-right

@@ -17,7 +17,7 @@
 - Modify `webui/Main.py`: mark finished news tasks as completed/failed in the ledger when Streamlit runs automation inline.
 - Modify `app/services/social_metadata.py`: reject unusable titles such as `unknown`, use story titles as deterministic defaults, and keep captions/tags populated.
 - Modify `app/services/task.py`: pass source story title as the default social metadata title and keep auto-publish diagnostics visible.
-- Modify `app/services/video.py`: add a configurable `DOLIDE News` watermark overlay to every generated short.
+- Modify `app/services/video.py`: add configurable `DOLIDE News` intro and watermark overlays to every generated short.
 - Create `app/services/news_diagnostics.py`: append-only task diagnostics for story selection, media search, metadata, and publishing.
 - Modify `config.example.toml`: document news history, web media, narration speed, and watermark settings.
 - Test `tests/services/test_news_history.py`: story key, filtering, reserving, marking.
@@ -76,13 +76,13 @@ Use `params.news_source_context["title"]` as the metadata default title before f
 - Modify: `app/services/video.py`
 - Modify: `config.example.toml`
 
-- [ ] **Step 1: Add watermark config keys**
+- [ ] **Step 1: Add intro and watermark config keys**
 
-Add `brand_watermark_enabled`, `brand_watermark_text`, `brand_watermark_position`, `brand_watermark_font_size`, and `brand_watermark_opacity`.
+Add `brand_intro_enabled`, `brand_intro_text`, `brand_intro_label`, `brand_intro_duration`, `brand_watermark_enabled`, `brand_watermark_text`, `brand_watermark_position`, `brand_watermark_font_size`, and `brand_watermark_opacity`.
 
-- [ ] **Step 2: Composite the watermark after subtitles**
+- [ ] **Step 2: Composite the intro and watermark after subtitles**
 
-Create a small `TextClip` for `DOLIDE News`, place it in the configured corner, and keep rendering non-fatal if the watermark cannot be created.
+Create a first-seconds news intro overlay and a small persistent `TextClip` for `DOLIDE News`; keep rendering non-fatal if either branding layer cannot be created.
 
 ## Task 4: Verify
 

@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from unittest import mock
 
@@ -100,6 +101,39 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(params.video_script, "")
         self.assertIn("Write a short factual news voiceover in English", params.video_subject)
         self.assertIn("Українська новина", params.video_subject)
+
+    def test_prepare_news_run_skips_previously_reserved_stories(self):
+        used = NewsStory(
+            provider="newsdata",
+            title="Already used",
+            summary="Old summary",
+            url="https://news.example/used",
+        )
+        fresh = NewsStory(
+            provider="newsdata",
+            title="Fresh story",
+            summary="Fresh summary",
+            url="https://news.example/fresh",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            automation_service.news_history.utils,
+            "storage_dir",
+            lambda sub_dir="", create=False: temp_dir,
+        ), mock.patch.object(
+            automation_service.news_sources, "search", return_value=[used, fresh]
+        ), mock.patch.object(
+            automation_service.news_pipeline.web_media,
+            "discover_story_media",
+            return_value=[],
+        ):
+            automation_service.news_history.reserve_story(used, run_id="old-run")
+            result = automation_service.prepare_news_run(
+                NewsAutomationRunRequest(source="newsdata", query="world", limit=1)
+            )
+
+        self.assertEqual(len(result["tasks"]), 1)
+        self.assertEqual(result["tasks"][0]["story"].title, "Fresh story")
 
 
 if __name__ == "__main__":

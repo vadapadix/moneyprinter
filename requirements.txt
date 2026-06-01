@@ -19,3 +19,4 @@ socksio==1.0.0
 pydub==0.25.1
 litellm==1.60.0
 telethon==1.43.0
+yt-dlp>=2026.3.17

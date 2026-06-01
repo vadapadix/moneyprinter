@@ -28,6 +28,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import automation as automation_service
+from app.services import news_history
 from app.services import llm, voice
 from app.services import task as tm
 from app.services import youtube_oauth
@@ -68,12 +69,20 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
         with st.spinner(f"Generating news video: {story.title}"):
             result = tm.start(task_id=task_id, params=task_params)
         publish_results = result.get("publish_results") if result else []
+        videos = result.get("videos", []) if result else []
+        news_history.mark_story_result(
+            story=story,
+            task_id=task_id,
+            success=bool(videos),
+            videos=videos,
+            publish_results=publish_results or [],
+        )
         results.append(
             {
                 "task_id": task_id,
                 "story": story.model_dump(),
-                "success": bool(result and result.get("videos")),
-                "videos": result.get("videos", []) if result else [],
+                "success": bool(videos),
+                "videos": videos,
                 "publish_results": publish_results or [],
             }
         )

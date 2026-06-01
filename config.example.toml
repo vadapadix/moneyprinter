@@ -337,10 +337,26 @@ news_voice_rate = 1.18
 news_web_media_enabled = true
 news_web_search_enabled = true
 news_web_media_timeout = 20
+news_story_fetch_multiplier = 3
+news_ytdlp_enabled = true
+news_ytdlp_timeout = 30
+news_ytdlp_format = "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/best"
 news_stock_fallback_source = "pexels"
 news_min_clips = 3
 news_video_clip_duration = 5
 news_auto_limit = 1
+
+########## News branding
+brand_watermark_enabled = true
+brand_watermark_text = "DOLIDE News"
+brand_watermark_position = "top-right" # top-left, top-right, bottom-left, bottom-right
+brand_watermark_margin = 30
+brand_watermark_font_name = ""
+brand_watermark_font_size = 34
+brand_watermark_color = "#FFFFFF"
+brand_watermark_stroke_color = "#000000"
+brand_watermark_stroke_width = 2
+brand_watermark_opacity = 0.85
 
 # Telegram Bot API token from @BotFather. Add the bot to each channel you want
 # to read, then list allowed numeric IDs or public usernames here.

@@ -8,7 +8,7 @@ from app.models.schema import (
     SocialPlatform,
     VideoParams,
 )
-from app.services import news_pipeline, news_sources, trends
+from app.services import news_history, news_pipeline, news_sources, trends
 from app.services.social_platform_utils import platform_values
 from app.utils import utils
 
@@ -150,12 +150,17 @@ def prepare_news_run(request: NewsAutomationRunRequest) -> dict:
         country=request.country or config.app.get("news_country", "us"),
         language=request.language or config.app.get("news_language", "en"),
         category=request.category or config.app.get("news_category") or None,
-        limit=request.limit,
+        limit=max(
+            request.limit,
+            request.limit * int(config.app.get("news_story_fetch_multiplier", 3)),
+        ),
     )
     stories = news_sources.search(source, query)
+    selected_stories = news_history.filter_new_stories(stories, request.limit)
     tasks = []
-    for story in stories[: request.limit]:
+    for story in selected_stories:
         task_id = utils.get_uuid()
+        news_history.reserve_story(story, run_id=run_id, task_id=task_id)
         params = build_video_params_from_news(request, story)
         tasks.append(
             {
@@ -171,5 +176,6 @@ def prepare_news_run(request: NewsAutomationRunRequest) -> dict:
         "run_id": run_id,
         "query": query,
         "stories": stories,
+        "selected_stories": selected_stories,
         "tasks": tasks,
     }

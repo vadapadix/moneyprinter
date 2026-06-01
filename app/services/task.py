@@ -13,6 +13,7 @@ from app.services import (
     llm,
     material,
     news_pipeline,
+    news_video_search,
     social_metadata,
     social_publisher,
     subtitle,
@@ -290,6 +291,22 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         if len(video_paths) >= min_news_clips:
             return video_paths
 
+        search_query = (
+            (params.news_source_context or {}).get("title")
+            or params.news_query
+            or params.video_subject
+        )
+        ytdlp_paths = news_video_search.search_and_download(
+            query=search_query,
+            save_dir=utils.task_dir(task_id),
+            limit=max(0, min_news_clips - len(video_paths)),
+        )
+        for ytdlp_path in ytdlp_paths:
+            if ytdlp_path not in video_paths:
+                video_paths.append(ytdlp_path)
+        if len(video_paths) >= min_news_clips:
+            return video_paths
+
         fallback_source = config.app.get("news_stock_fallback_source", "pexels")
         logger.info(
             f"adding {fallback_source} stock fallback clips after {len(video_paths)} direct news clips"
@@ -497,6 +514,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     )
 
     # 7. Generate social metadata and publish if enabled.
+    social_default_title = (
+        (params.news_source_context or {}).get("title")
+        if params.news_source_context
+        else ""
+    ) or params.video_subject
     generated_social_metadata = social_metadata.generate_social_metadata(
         video_subject=params.video_subject,
         video_script=video_script,
@@ -507,10 +529,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         language=params.video_language,
         trend_context=params.trend_context,
         source_context=params.news_source_context,
+        default_title=social_default_title,
     )
     if params.social_metadata:
         generated_social_metadata = social_metadata.normalize_metadata(
-            params.social_metadata, default_title=params.video_subject
+            params.social_metadata, default_title=social_default_title
         )
     publish_results = []
     auto_publish = (
@@ -527,7 +550,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         except ValueError:
             logger.warning("invalid social_privacy config, falling back to private")
             privacy = PublishPrivacy.private
-        platforms = platform_values(params.social_platforms) if params.social_platforms else None
+        platforms = (
+            platform_values(params.social_platforms)
+            if params.social_platforms
+            else [str(platform).lower() for platform in config.app.get("social_platforms", [])]
+        )
         if platforms:
             enabled_platforms = []
             for platform in platforms:

@@ -29,8 +29,31 @@ def _unique_strings(values: Iterable[str], limit: int) -> list[str]:
     return results
 
 
+def _usable_title(value: str) -> bool:
+    normalized = re.sub(r"[^0-9a-z]+", " ", (value or "").strip().lower()).strip()
+    if not normalized:
+        return False
+    bad_titles = {
+        "unknown",
+        "untitled",
+        "n a",
+        "na",
+        "none",
+        "generated short video",
+    }
+    return normalized not in bad_titles
+
+
+def _select_title(title: str, default_title: str = "") -> str:
+    if _usable_title(title):
+        return title.strip()
+    if _usable_title(default_title):
+        return default_title.strip()
+    return "Generated short video"
+
+
 def normalize_metadata(metadata: SocialMetadata, default_title: str = "") -> SocialMetadata:
-    title = (metadata.title or default_title or "Generated short video").strip()
+    title = _select_title(metadata.title, default_title)
     if len(title) > 95:
         title = title[:92].rstrip() + "..."
 
@@ -68,19 +91,21 @@ def normalize_metadata(metadata: SocialMetadata, default_title: str = "") -> Soc
     )
 
 
-def fallback_metadata(video_subject: str, video_terms=None) -> SocialMetadata:
+def fallback_metadata(
+    video_subject: str, video_terms=None, default_title: str = ""
+) -> SocialMetadata:
     terms = video_terms or []
     if isinstance(terms, str):
         terms = re.split(r"[,，]", terms)
 
     hashtags = [_normalize_hashtag(term) for term in terms]
     metadata = SocialMetadata(
-        title=video_subject or "Generated short video",
-        description=video_subject or "Generated short video",
+        title=default_title or video_subject or "Generated short video",
+        description=default_title or video_subject or "Generated short video",
         hashtags=[tag for tag in hashtags if tag],
         youtube_tags=[str(term).strip() for term in terms if str(term).strip()],
     )
-    return normalize_metadata(metadata, default_title=video_subject)
+    return normalize_metadata(metadata, default_title=default_title or video_subject)
 
 
 def _extract_json_object(response: str) -> dict:
@@ -101,6 +126,7 @@ def generate_social_metadata(
     platforms: list[str] | None = None,
     language: str = "",
     source_context: dict | None = None,
+    default_title: str = "",
 ) -> SocialMetadata:
     platforms = platforms or ["youtube", "tiktok"]
     prompt = f"""
@@ -134,12 +160,12 @@ script: {video_script}
     response = llm._generate_response(prompt)
     if not response or "Error: " in response:
         logger.warning(f"failed to generate social metadata, using fallback: {response}")
-        return fallback_metadata(video_subject, video_terms)
+        return fallback_metadata(video_subject, video_terms, default_title=default_title)
 
     try:
         payload = _extract_json_object(response)
         metadata = SocialMetadata(**payload)
-        return normalize_metadata(metadata, default_title=video_subject)
+        return normalize_metadata(metadata, default_title=default_title or video_subject)
     except Exception as exc:
         logger.warning(f"invalid social metadata response, using fallback: {str(exc)}")
-        return fallback_metadata(video_subject, video_terms)
+        return fallback_metadata(video_subject, video_terms, default_title=default_title)

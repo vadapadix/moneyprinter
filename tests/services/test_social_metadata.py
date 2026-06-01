@@ -64,6 +64,36 @@ class SocialMetadataTest(unittest.TestCase):
         self.assertTrue(result.description.startswith("A sourced summary."))
         self.assertTrue(result.platform_captions["tiktok"].startswith("A sourced summary"))
 
+    def test_unknown_title_falls_back_to_source_title(self):
+        def fake_generate_response(prompt):
+            return """
+            {
+                "title": "unknown",
+                "description": "A concise update.",
+                "hashtags": ["#News"],
+                "youtube_tags": ["News"],
+                "category_id": "25",
+                "contains_synthetic_media": true,
+                "platform_captions": {
+                    "tiktok": "A concise update #News"
+                }
+            }
+            """
+
+        with mock.patch.object(
+            social_metadata.llm, "_generate_response", fake_generate_response
+        ):
+            result = social_metadata.generate_social_metadata(
+                video_subject="Long prompt text",
+                video_script="Story script",
+                video_terms=["news"],
+                default_title="Real source headline",
+            )
+
+        self.assertEqual(result.title, "Real source headline")
+        self.assertIn("#Shorts", result.description)
+        self.assertEqual(result.platform_captions["tiktok"], "A concise update #News")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,7 @@ from moviepy import (
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import Image, ImageFont
 
+from app.config import config
 from app.models import const
 from app.models.schema import (
     MaterialInfo,
@@ -32,6 +33,60 @@ from app.models.schema import (
 )
 from app.services.utils import video_effects
 from app.utils import file_security, utils
+
+
+def _watermark_position(position: str, video_width: int, video_height: int, clip):
+    margin = int(config.app.get("brand_watermark_margin", 30))
+    position = (position or "top-right").strip().lower()
+    x_left = margin
+    x_right = max(margin, video_width - clip.w - margin)
+    y_top = margin
+    y_bottom = max(margin, video_height - clip.h - margin)
+    positions = {
+        "top-left": (x_left, y_top),
+        "top-right": (x_right, y_top),
+        "bottom-left": (x_left, y_bottom),
+        "bottom-right": (x_right, y_bottom),
+    }
+    return positions.get(position, positions["top-right"])
+
+
+def _create_brand_watermark(video_width: int, video_height: int, duration: float):
+    if not config.app.get("brand_watermark_enabled", True):
+        return None
+    text = str(config.app.get("brand_watermark_text", "DOLIDE News")).strip()
+    if not text:
+        return None
+
+    font_name = config.app.get("brand_watermark_font_name") or config.app.get(
+        "font_name", "STHeitiMedium.ttc"
+    )
+    font_path = os.path.join(utils.font_dir(), font_name)
+    if os.name == "nt":
+        font_path = font_path.replace("\\", "/")
+
+    clip = TextClip(
+        text=text,
+        font=font_path,
+        font_size=int(config.app.get("brand_watermark_font_size", 34)),
+        color=str(config.app.get("brand_watermark_color", "#FFFFFF")),
+        stroke_color=str(config.app.get("brand_watermark_stroke_color", "#000000")),
+        stroke_width=float(config.app.get("brand_watermark_stroke_width", 2)),
+    ).with_duration(duration)
+
+    opacity = float(config.app.get("brand_watermark_opacity", 0.85))
+    if hasattr(clip, "with_opacity"):
+        clip = clip.with_opacity(opacity)
+    clip = clip.with_position(
+        _watermark_position(
+            str(config.app.get("brand_watermark_position", "top-right")),
+            video_width,
+            video_height,
+            clip,
+        )
+    )
+    return clip
+
 
 class SubClippedVideoClip:
     def __init__(self, file_path, start_time=None, end_time=None, width=None, height=None, duration=None):
@@ -648,6 +703,17 @@ def generate_video(
             clip = create_text_clip(subtitle_item=item)
             text_clips.append(clip)
         video_clip = CompositeVideoClip([video_clip, *text_clips])
+
+    try:
+        watermark_clip = _create_brand_watermark(
+            video_width=video_width,
+            video_height=video_height,
+            duration=video_clip.duration,
+        )
+        if watermark_clip:
+            video_clip = CompositeVideoClip([video_clip, watermark_clip])
+    except Exception as e:
+        logger.warning(f"failed to add brand watermark: {str(e)}")
 
     bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
     if bgm_file:

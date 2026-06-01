@@ -30,6 +30,26 @@ class WebMediaTest(unittest.TestCase):
         self.assertEqual(assets[0].media_type, "video")
         self.assertEqual(assets[0].url, "https://cdn.example.com/video.mp4")
 
+    def test_discover_story_media_searches_title_variants(self):
+        story = NewsStory(
+            provider="guardian",
+            title="Major headline",
+            category="world",
+        )
+        calls = []
+
+        def fake_search(query, limit=4):
+            calls.append(query)
+            return []
+
+        with mock.patch.object(web_media, "_search_urls", fake_search):
+            assets = web_media.discover_story_media(story)
+
+        self.assertEqual(assets, [])
+        self.assertIn("Major headline", calls)
+        self.assertIn("Major headline guardian", calls)
+        self.assertIn("Major headline world", calls)
+
 
 if __name__ == "__main__":
     unittest.main()

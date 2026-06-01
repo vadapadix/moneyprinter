@@ -18,10 +18,12 @@
 - Modify `app/services/social_metadata.py`: reject unusable titles such as `unknown`, use story titles as deterministic defaults, and keep captions/tags populated.
 - Modify `app/services/task.py`: pass source story title as the default social metadata title and keep auto-publish diagnostics visible.
 - Modify `app/services/video.py`: add a configurable `DOLIDE News` watermark overlay to every generated short.
+- Create `app/services/news_diagnostics.py`: append-only task diagnostics for story selection, media search, metadata, and publishing.
 - Modify `config.example.toml`: document news history, web media, narration speed, and watermark settings.
 - Test `tests/services/test_news_history.py`: story key, filtering, reserving, marking.
 - Test `tests/controllers/test_news_automation.py`: automation skips repeated stories and keeps English/news defaults.
 - Test `tests/services/test_social_metadata.py`: bad LLM title falls back to story title.
+- Test `tests/services/test_news_diagnostics.py`: diagnostic events persist as JSON.
 
 ## Task 1: Persist Unique Story Selection
 
@@ -96,3 +98,29 @@ Expected: compile success.
 
 Run: `D:\moneyprinter\lib\python\python.exe -m unittest tests.services.test_news_history tests.services.test_social_metadata tests.controllers.test_news_automation tests.services.test_news_pipeline tests.services.test_web_media tests.services.test_task_terms -v`
 Expected: all tests pass.
+
+## Task 5: Add Pipeline Diagnostics
+
+**Files:**
+- Create: `app/services/news_diagnostics.py`
+- Modify: `app/services/automation.py`
+- Modify: `app/services/task.py`
+- Modify: `webui/Main.py`
+- Modify: `app/controllers/v1/automation.py`
+- Test: `tests/services/test_news_diagnostics.py`
+
+- [ ] **Step 1: Persist task events**
+
+Write events to `storage/news/diagnostics/{task_id}.json` with `event`, `created_at`, and JSON-safe `properties`.
+
+- [ ] **Step 2: Record article and media stages**
+
+Record `news_story_reserved`, `news_ytdlp_search_started`, `news_ytdlp_search_completed`, `news_stock_fallback_started`, and `news_stock_fallback_completed`.
+
+- [ ] **Step 3: Record publishing stages**
+
+Record `social_metadata_ready`, `social_publish_skipped`, and `social_publish_completed` so failed uploads can be diagnosed without reading terminal logs.
+
+- [ ] **Step 4: Expose diagnostics**
+
+Return diagnostics in Streamlit inline automation payloads and `/tasks/{task_id}/publish`.

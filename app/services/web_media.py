@@ -70,6 +70,23 @@ def _search_urls(query: str, limit: int = 4) -> list[str]:
     return urls
 
 
+def _search_query_variants(story: NewsStory) -> list[str]:
+    candidates = [
+        story.title,
+        " ".join([story.title, story.provider]).strip(),
+        " ".join([story.title, story.category]).strip(),
+    ]
+    variants = []
+    seen = set()
+    for candidate in candidates:
+        cleaned = re.sub(r"\s+", " ", (candidate or "").strip())
+        key = cleaned.lower()
+        if cleaned and key not in seen:
+            seen.add(key)
+            variants.append(cleaned)
+    return variants
+
+
 def _candidate_video_urls(page_url: str, content: str) -> list[str]:
     candidates = []
     patterns = [
@@ -94,10 +111,11 @@ def discover_story_media(story: NewsStory, limit: int = 3) -> list[NewsMediaAsse
     if story.url:
         urls.append(story.url)
     if config.app.get("news_web_search_enabled", True) and story.title:
-        try:
-            urls.extend(_search_urls(story.title))
-        except Exception as exc:
-            logger.warning(f"web media search failed: {str(exc)}")
+        for query in _search_query_variants(story):
+            try:
+                urls.extend(_search_urls(query))
+            except Exception as exc:
+                logger.warning(f"web media search failed for '{query}': {str(exc)}")
 
     assets = []
     seen = {asset.url for asset in story.media}

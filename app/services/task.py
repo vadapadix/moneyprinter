@@ -12,6 +12,7 @@ from app.models.schema import PublishPrivacy, VideoConcatMode, VideoParams
 from app.services import (
     llm,
     material,
+    news_diagnostics,
     news_pipeline,
     news_video_search,
     social_metadata,
@@ -289,12 +290,26 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
                 video_paths.append(saved_video_path)
         min_news_clips = int(config.app.get("news_min_clips", 3))
         if len(video_paths) >= min_news_clips:
+            news_diagnostics.record_event(
+                task_id,
+                "news_direct_media_ready",
+                direct_video_count=len(video_paths),
+                required_clip_count=min_news_clips,
+                source="news_assets",
+            )
             return video_paths
 
         search_query = (
             (params.news_source_context or {}).get("title")
             or params.news_query
             or params.video_subject
+        )
+        news_diagnostics.record_event(
+            task_id,
+            "news_ytdlp_search_started",
+            query=search_query,
+            requested_count=max(0, min_news_clips - len(video_paths)),
+            existing_direct_video_count=len(video_paths),
         )
         ytdlp_paths = news_video_search.search_and_download(
             query=search_query,
@@ -304,12 +319,27 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         for ytdlp_path in ytdlp_paths:
             if ytdlp_path not in video_paths:
                 video_paths.append(ytdlp_path)
+        news_diagnostics.record_event(
+            task_id,
+            "news_ytdlp_search_completed",
+            query=search_query,
+            downloaded_count=len(ytdlp_paths),
+            total_video_count=len(video_paths),
+            downloaded_paths=ytdlp_paths,
+        )
         if len(video_paths) >= min_news_clips:
             return video_paths
 
         fallback_source = config.app.get("news_stock_fallback_source", "pexels")
         logger.info(
             f"adding {fallback_source} stock fallback clips after {len(video_paths)} direct news clips"
+        )
+        news_diagnostics.record_event(
+            task_id,
+            "news_stock_fallback_started",
+            source=fallback_source,
+            existing_video_count=len(video_paths),
+            search_terms=video_terms or [params.video_subject],
         )
         downloaded_videos = material.download_videos(
             task_id=task_id,
@@ -326,6 +356,13 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             logger.error("failed to download fallback videos for news story")
             return None
+        news_diagnostics.record_event(
+            task_id,
+            "news_stock_fallback_completed",
+            source=fallback_source,
+            downloaded_count=len(downloaded_videos),
+            total_video_count=len(video_paths) + len(downloaded_videos),
+        )
         return video_paths + downloaded_videos
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
@@ -535,6 +572,15 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         generated_social_metadata = social_metadata.normalize_metadata(
             params.social_metadata, default_title=social_default_title
         )
+    news_diagnostics.record_event(
+        task_id,
+        "social_metadata_ready",
+        title=generated_social_metadata.title,
+        default_title=social_default_title,
+        hashtag_count=len(generated_social_metadata.hashtags),
+        youtube_tag_count=len(generated_social_metadata.youtube_tags),
+        has_tiktok_caption=bool(generated_social_metadata.platform_captions.get("tiktok")),
+    )
     publish_results = []
     auto_publish = (
         params.social_auto_publish
@@ -573,6 +619,11 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             platforms = enabled_platforms
         if not platforms:
             logger.warning("No enabled social platforms available for auto-publish")
+            news_diagnostics.record_event(
+                task_id,
+                "social_publish_skipped",
+                reason="no_enabled_platforms",
+            )
         for video_path in final_video_paths:
             for result in social_publisher.publish_video(
                 video_path=video_path,
@@ -589,6 +640,15 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
                         f"Failed to publish to {result.get('platform')}: "
                         f"{result.get('error', 'Unknown error')}"
                     )
+        news_diagnostics.record_event(
+            task_id,
+            "social_publish_completed",
+            requested_platforms=platforms,
+            result_count=len(publish_results),
+            success_count=len([item for item in publish_results if item.get("success")]),
+            failed_count=len([item for item in publish_results if not item.get("success")]),
+            results=publish_results,
+        )
 
     kwargs = {
         "videos": final_video_paths,

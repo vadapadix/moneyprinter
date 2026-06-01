@@ -28,6 +28,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import automation as automation_service
+from app.services import news_diagnostics
 from app.services import news_history
 from app.services import llm, voice
 from app.services import task as tm
@@ -84,6 +85,7 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
                 "success": bool(videos),
                 "videos": videos,
                 "publish_results": publish_results or [],
+                "diagnostics": news_diagnostics.get_task_diagnostics(task_id),
             }
         )
 

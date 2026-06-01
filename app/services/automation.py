@@ -8,7 +8,7 @@ from app.models.schema import (
     SocialPlatform,
     VideoParams,
 )
-from app.services import news_history, news_pipeline, news_sources, trends
+from app.services import news_diagnostics, news_history, news_pipeline, news_sources, trends
 from app.services.social_platform_utils import platform_values
 from app.utils import utils
 
@@ -158,10 +158,24 @@ def prepare_news_run(request: NewsAutomationRunRequest) -> dict:
     stories = news_sources.search(source, query)
     selected_stories = news_history.filter_new_stories(stories, request.limit)
     tasks = []
-    for story in selected_stories:
+    for index, story in enumerate(selected_stories):
         task_id = utils.get_uuid()
         news_history.reserve_story(story, run_id=run_id, task_id=task_id)
         params = build_video_params_from_news(request, story)
+        news_diagnostics.record_event(
+            task_id,
+            "news_story_reserved",
+            run_id=run_id,
+            selected_index=index,
+            total_found=len(stories),
+            total_selected=len(selected_stories),
+            provider=story.provider,
+            title=story.title,
+            url=story.url,
+            media_asset_count=len(story.media),
+            auto_publish=params.social_auto_publish,
+            platforms=platform_values(params.social_platforms),
+        )
         tasks.append(
             {
                 "task_id": task_id,

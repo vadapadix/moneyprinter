@@ -13,7 +13,7 @@ from app.models.schema import (
     SocialMetadata,
     TrendQueryRequest,
 )
-from app.services import automation, social_metadata, social_publisher, state as sm
+from app.services import automation, news_diagnostics, social_metadata, social_publisher, state as sm
 from app.services import news_sources
 from app.services import task as tm
 from app.services import trends
@@ -136,6 +136,7 @@ def get_publish_status(request: Request, task_id: str = Path(..., description="T
             "social_metadata": task.get("social_metadata"),
             "publish_results": task.get("publish_results"),
             "cross_post_results": task.get("cross_post_results"),
+            "diagnostics": news_diagnostics.get_task_diagnostics(task_id),
         },
     )
 

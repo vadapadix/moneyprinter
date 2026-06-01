@@ -6,7 +6,7 @@ from loguru import logger
 
 from app.config import config
 from app.models.schema import PublishPrivacy, SocialMetadata
-from app.services import youtube_oauth
+from app.services import social_metadata, youtube_oauth
 from app.services.publishers.base import PublishResult, Publisher
 
 
@@ -63,6 +63,10 @@ class YouTubeShortsPublisher(Publisher):
                 error=f"Video file not found: {video_path}",
             )
 
+        metadata = social_metadata.normalize_metadata(
+            metadata,
+            default_title=os.path.splitext(os.path.basename(video_path))[0],
+        )
         privacy_status = privacy.value if privacy else self.default_privacy
         if privacy_status == "draft":
             privacy_status = "private"

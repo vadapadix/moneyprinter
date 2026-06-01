@@ -447,9 +447,11 @@ def test_upload_video(
         
         # Prepare metadata for testing
         metadata = SocialMetadata(
+            title="Private YouTube Shorts upload test",
             description="Test video upload",
             platform_captions={"tiktok": "Test upload #test", "youtube": "Test upload #test"},
-            hashtags=["test", "upload"],
+            hashtags=["#test", "#upload", "#Shorts"],
+            youtube_tags=["test", "upload", "shorts"],
             contains_synthetic_media=False
         )
         

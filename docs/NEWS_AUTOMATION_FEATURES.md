@@ -17,6 +17,8 @@ Provider results are normalized to `NewsStory` objects with title, summary, sour
 
 Every queued story is reserved in `storage/news/history.json`. The key is the source URL when available, otherwise a provider/title/date hash. This prevents repeated articles between runs.
 
+When the first fetched batch is mostly old/reserved stories, the automation increases the provider fetch limit in waves until it finds the requested number of unique articles or reaches `news_unique_selection_max_fetch_multiplier`. Each queued task receives the selection attempt summary in diagnostics, so a user can see whether the run stopped because the providers had no new stories or because the limit was reached.
+
 Story result status is updated after generation:
 
 - `reserved`: selected for a run.

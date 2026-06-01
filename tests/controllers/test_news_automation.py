@@ -135,6 +135,59 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(len(result["tasks"]), 1)
         self.assertEqual(result["tasks"][0]["story"].title, "Fresh story")
 
+    def test_prepare_news_run_expands_fetch_until_unique_story_is_found(self):
+        used = NewsStory(
+            provider="guardian",
+            title="Already used",
+            summary="Old summary",
+            url="https://news.example/used",
+        )
+        fresh = NewsStory(
+            provider="guardian",
+            title="Fresh article from deeper fetch",
+            summary="A detailed new story with enough context for a serious news short.",
+            url="https://news.example/fresh-deeper",
+        )
+        requested_limits = []
+
+        def fake_search(source, query):
+            requested_limits.append(query.limit)
+            if query.limit <= 3:
+                return [used]
+            return [used, fresh]
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            automation_service.news_history.utils,
+            "storage_dir",
+            lambda sub_dir="", create=False: temp_dir,
+        ), mock.patch.object(
+            automation_service.news_diagnostics.utils,
+            "storage_dir",
+            lambda sub_dir="", create=False: temp_dir,
+        ), mock.patch.dict(
+            "app.services.automation.config.app",
+            {
+                "news_story_fetch_multiplier": 3,
+                "news_unique_selection_max_fetch_multiplier": 12,
+            },
+            clear=False,
+        ), mock.patch.object(
+            automation_service.news_sources, "search", side_effect=fake_search
+        ), mock.patch.object(
+            automation_service.news_pipeline.web_media,
+            "discover_story_media",
+            return_value=[],
+        ):
+            automation_service.news_history.reserve_story(used, run_id="old-run")
+            result = automation_service.prepare_news_run(
+                NewsAutomationRunRequest(source="guardian", query="world", limit=1)
+            )
+
+        self.assertEqual(result["tasks"][0]["story"].title, fresh.title)
+        self.assertEqual(requested_limits[:2], [3, 6])
+        self.assertEqual(result["selection_attempts"][0]["selected_count"], 0)
+        self.assertEqual(result["selection_attempts"][1]["selected_count"], 1)
+
     def test_prepare_news_run_ranks_richer_story_before_thin_story(self):
         thin = NewsStory(
             provider="newsdata",

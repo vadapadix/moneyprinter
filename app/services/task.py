@@ -13,6 +13,7 @@ from app.services import (
     llm,
     material,
     news_diagnostics,
+    news_history,
     news_pipeline,
     news_video_search,
     social_metadata,
@@ -435,6 +436,41 @@ def generate_final_videos(
     return final_video_paths, combined_video_paths
 
 
+def _mark_news_story_result(
+    task_id: str,
+    params: VideoParams,
+    success: bool,
+    videos: list[str] | None = None,
+    publish_results: list[dict] | None = None,
+    reason: str = "",
+) -> None:
+    if params.video_source != "news" or not params.news_source_context:
+        return
+
+    story = news_pipeline.story_from_source_context(params.news_source_context)
+    news_history.mark_story_result(
+        story,
+        task_id=task_id,
+        success=success,
+        videos=videos or [],
+        publish_results=publish_results or [],
+    )
+    news_diagnostics.record_event(
+        task_id,
+        "news_history_finalized",
+        success=success,
+        status="completed" if success else "failed",
+        reason=reason,
+        video_count=len(videos or []),
+        publish_count=len(publish_results or []),
+    )
+
+
+def _fail_news_task(task_id: str, params: VideoParams, reason: str) -> None:
+    _mark_news_story_result(task_id, params, success=False, reason=reason)
+    news_diagnostics.record_event(task_id, "news_task_failed", reason=reason)
+
+
 def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
@@ -444,12 +480,14 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         if not news_story:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             logger.error("failed to find a news story for the requested query")
+            _fail_news_task(task_id, params, "news_story_not_found")
             return
 
     # 1. Generate script
     video_script = generate_script(task_id, params)
     if not video_script or "Error: " in video_script:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        _fail_news_task(task_id, params, "script_generation_failed")
         return
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
@@ -466,6 +504,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         video_terms = generate_terms(task_id, params, video_script)
         if not video_terms:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+            _fail_news_task(task_id, params, "terms_generation_failed")
             return
 
     save_script_data(task_id, video_script, video_terms, params)
@@ -484,6 +523,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     )
     if not audio_file:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        _fail_news_task(task_id, params, "audio_generation_failed")
         return
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
@@ -519,6 +559,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
     )
     if not downloaded_videos:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        _fail_news_task(task_id, params, "video_materials_failed")
         return
 
     if stop_at == "materials":
@@ -544,6 +585,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     if not final_video_paths:
         sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
+        _fail_news_task(task_id, params, "final_video_generation_failed")
         return
 
     logger.success(
@@ -649,6 +691,15 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             failed_count=len([item for item in publish_results if not item.get("success")]),
             results=publish_results,
         )
+
+    _mark_news_story_result(
+        task_id,
+        params,
+        success=True,
+        videos=final_video_paths,
+        publish_results=publish_results,
+        reason="completed",
+    )
 
     kwargs = {
         "videos": final_video_paths,

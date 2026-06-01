@@ -131,7 +131,7 @@ def build_video_params_from_news(
         paragraph_number=int(config.app.get("news_script_paragraphs", 2)),
         voice_name=_configured_voice_name(),
         voice_rate=float(
-            config.app.get("news_voice_rate", 1.18)
+            config.app.get("news_voice_rate", 1.32)
         ),
         bgm_type=config.ui.get("bgm_type", config.app.get("bgm_type", "random")),
         font_name=config.ui.get("font_name", config.app.get("font_name", "STHeitiMedium.ttc")),

@@ -2,6 +2,7 @@ import unittest
 from unittest import mock
 
 from app.models.schema import NewsQueryRequest
+from app.services import news_sources
 from app.services.news_sources import get_provider
 from app.services.news_sources.guardian import GuardianProvider
 from app.services.news_sources.newsdata import NewsDataProvider
@@ -94,6 +95,47 @@ class NewsProviderTest(unittest.TestCase):
         self.assertIsInstance(get_provider("newsdata"), NewsDataProvider)
         self.assertIsInstance(get_provider("guardian"), GuardianProvider)
         self.assertIsNone(get_provider("unknown"))
+
+    def test_auto_source_searches_configured_sources_and_deduplicates(self):
+        class FakeProvider:
+            def __init__(self, stories):
+                self.stories = stories
+
+            def search(self, query):
+                return self.stories
+
+        first_story = news_sources.NewsStory(
+            provider="newsdata",
+            title="Shared story",
+            url="https://news.example/shared",
+        )
+        duplicate_story = news_sources.NewsStory(
+            provider="guardian",
+            title="Duplicate",
+            url="https://news.example/shared",
+        )
+        fresh_story = news_sources.NewsStory(
+            provider="guardian",
+            title="Fresh story",
+            url="https://guardian.example/fresh",
+        )
+        providers = {
+            "newsdata": FakeProvider([first_story]),
+            "guardian": FakeProvider([duplicate_story, fresh_story]),
+        }
+
+        with mock.patch.dict(
+            "app.services.news_sources.config.app",
+            {"news_auto_sources": ["newsdata", "guardian"]},
+            clear=False,
+        ), mock.patch.object(
+            news_sources, "get_provider", lambda source: providers.get(source)
+        ):
+            stories = news_sources.search(
+                "auto", NewsQueryRequest(source="auto", query="world", limit=2)
+            )
+
+        self.assertEqual([story.title for story in stories], ["Shared story", "Fresh story"])
 
 
 if __name__ == "__main__":

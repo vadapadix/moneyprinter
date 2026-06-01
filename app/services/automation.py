@@ -140,7 +140,7 @@ def build_video_params_from_news(
 def prepare_news_run(request: NewsAutomationRunRequest) -> dict:
     run_id = utils.get_uuid()
     source = (
-        config.app.get("news_source", "newsdata")
+        config.app.get("news_source", "auto")
         if request.source in ("", "config")
         else request.source
     )

@@ -823,10 +823,10 @@ with st.container(border=True):
 
 with st.container(border=True):
     st.write("News automation")
-    news_sources = ["telethon", "newsdata", "guardian", "telegram"]
-    saved_news_source = config.app.get("news_source", "telethon")
+    news_sources = ["auto", "telethon", "newsdata", "guardian", "telegram"]
+    saved_news_source = config.app.get("news_source", "auto")
     if saved_news_source not in news_sources:
-        saved_news_source = "telethon"
+        saved_news_source = "auto"
     news_cols = st.columns([1, 2, 1, 1])
     news_source = news_cols[0].selectbox(
         "Source",
@@ -995,10 +995,10 @@ with middle_panel:
             )
 
         if params.video_source == "news":
-            news_sources = ["newsdata", "guardian", "telegram", "telethon"]
-            saved_news_source = config.app.get("news_source", "newsdata")
+            news_sources = ["auto", "newsdata", "guardian", "telegram", "telethon"]
+            saved_news_source = config.app.get("news_source", "auto")
             if saved_news_source not in news_sources:
-                saved_news_source = "newsdata"
+                saved_news_source = "auto"
             params.news_source = st.selectbox(
                 "News source",
                 options=news_sources,

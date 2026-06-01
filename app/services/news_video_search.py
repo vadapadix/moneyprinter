@@ -20,6 +20,16 @@ def _iter_entries(info: dict) -> list[dict]:
     return [info] if isinstance(info, dict) else []
 
 
+def _english_news_query(query: str) -> str:
+    query = re.sub(r"\s+", " ", (query or "").strip())
+    if not query:
+        return ""
+    lowered = query.lower()
+    if "english" in lowered and "news" in lowered:
+        return query
+    return f"{query} English news video"
+
+
 def search_and_download(query: str, save_dir: str, limit: int = 2) -> list[str]:
     if not config.app.get("news_ytdlp_enabled", True):
         return []
@@ -53,7 +63,8 @@ def search_and_download(query: str, save_dir: str, limit: int = 2) -> list[str]:
         if proxy:
             ydl_opts["proxy"] = proxy
 
-    search_target = f"ytsearch{limit}:{query}"
+    search_query = _english_news_query(query)
+    search_target = f"ytsearch{limit}:{search_query}"
     downloaded = []
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

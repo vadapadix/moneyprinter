@@ -83,7 +83,7 @@ def story_from_source_context(source_context: dict) -> NewsStory:
 
 def query_from_params(params) -> NewsQueryRequest:
     return NewsQueryRequest(
-        source=params.news_source or config.app.get("news_source", "newsdata"),
+        source=params.news_source or config.app.get("news_source", "auto"),
         query=params.news_query or params.video_subject,
         country=params.news_country or config.app.get("news_country", "us"),
         language=params.news_language

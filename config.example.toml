@@ -326,7 +326,8 @@ newsdata_api_key = ""
 # Guardian Open Platform developer key: https://open-platform.theguardian.com/access
 guardian_api_key = ""
 telemetrio_api_token = ""
-news_source = "newsdata" # "newsdata", "guardian", "telegram", or "telethon"
+news_source = "auto" # "auto", "newsdata", "guardian", "telegram", or "telethon"
+news_auto_sources = ["telethon", "newsdata", "guardian", "telegram"]
 news_query = ""
 news_country = "us"
 news_language = "en"

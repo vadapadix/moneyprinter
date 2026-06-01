@@ -18,6 +18,7 @@ class FakeYoutubeDL:
         return False
 
     def extract_info(self, target, download=True):
+        self.options["target"] = target
         path = os.path.join(
             os.path.dirname(self.options["outtmpl"]),
             "downloaded-news-video.mp4",
@@ -66,6 +67,30 @@ class NewsVideoSearchTest(unittest.TestCase):
             )
 
         self.assertEqual(paths, [])
+
+    def test_search_target_requests_english_news_video(self):
+        fake_module = types.SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+        captured = {}
+
+        class CapturingYoutubeDL(FakeYoutubeDL):
+            def __init__(self, options):
+                super().__init__(options)
+                captured["options"] = options
+
+        fake_module.YoutubeDL = CapturingYoutubeDL
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            news_video_search.search_and_download(
+                "major news headline",
+                save_dir=temp_dir,
+                limit=1,
+            )
+
+        self.assertEqual(
+            captured["options"]["target"],
+            "ytsearch1:major news headline English news video",
+        )
 
 
 if __name__ == "__main__":

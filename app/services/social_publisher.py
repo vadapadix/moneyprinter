@@ -3,6 +3,7 @@ from app.models.schema import PublishPrivacy, SocialMetadata
 from app.services import state as sm
 from app.services.publishers.base import PublishResult
 from app.services.publishers.tiktok import TikTokPublisher
+from app.services.publishers.tiktok_browser import TikTokBrowserPublisher
 from app.services.publishers.youtube import YouTubeShortsPublisher
 
 
@@ -20,6 +21,8 @@ def get_publisher(platform: str):
     if platform == "youtube":
         return YouTubeShortsPublisher()
     if platform == "tiktok":
+        if config.app.get("tiktok_publish_mode", "api") == "browser_assist":
+            return TikTokBrowserPublisher()
         return TikTokPublisher()
     return None
 

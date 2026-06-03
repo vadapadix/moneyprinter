@@ -177,6 +177,30 @@ class TaskNewsHistoryTest(unittest.TestCase):
         self.assertEqual(summary["skip_reason"], "auto_publish_disabled")
         self.assertEqual(summary["requested_platforms"], ["youtube"])
 
+    def test_social_publish_preflight_accepts_tiktok_browser_assist(self):
+        params = VideoParams(
+            video_subject="News",
+            social_auto_publish=True,
+            social_platforms=[SocialPlatform.tiktok],
+        )
+
+        with mock.patch.dict(
+            "app.services.task.config.app",
+            {
+                "tiktok_publish_mode": "browser_assist",
+                "tiktok_browser_upload_enabled": True,
+                "tiktok_upload_enabled": False,
+                "social_privacy": "private",
+            },
+            clear=False,
+        ):
+            summary, privacy = task._social_publish_preflight(params)
+
+        self.assertEqual(summary["enabled_platforms"], ["tiktok"])
+        self.assertEqual(summary["manual_review_platforms"], ["tiktok"])
+        self.assertEqual(summary["skipped_platforms"], [])
+        self.assertEqual(privacy.value, "private")
+
     def test_news_concat_mode_preserves_source_media_order_by_default(self):
         params = VideoParams(
             video_subject="News",

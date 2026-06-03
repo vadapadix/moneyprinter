@@ -320,6 +320,16 @@ tiktok_disable_duet = false
 tiktok_disable_comment = false
 tiktok_disable_stitch = false
 
+# TikTok publishing mode:
+# - "api": official Content Posting API.
+# - "browser_assist": prepare the MP4/caption and open TikTok Studio for manual review/post.
+tiktok_publish_mode = "api"
+tiktok_browser_upload_enabled = false
+tiktok_browser_upload_url = "https://www.tiktok.com/tiktokstudio/upload"
+tiktok_browser_upload_dir = "storage/social_uploads/tiktok"
+tiktok_browser_open_upload_page = true
+tiktok_browser_copy_caption = true
+
 ########## News video sources
 # NewsData.io API key: https://newsdata.io/register
 newsdata_api_key = ""

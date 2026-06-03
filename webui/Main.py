@@ -791,13 +791,19 @@ social_platform_options = {
     "YouTube Shorts": SocialPlatform.youtube,
     "TikTok": SocialPlatform.tiktok,
 }
-tiktok_connected = bool(
+tiktok_publish_mode = str(config.app.get("tiktok_publish_mode", "api"))
+tiktok_api_connected = bool(
     config.app.get("tiktok_upload_enabled")
     and config.app.get("tiktok_access_token")
     and config.app.get("tiktok_refresh_token")
 )
+tiktok_browser_connected = bool(
+    tiktok_publish_mode == "browser_assist"
+    and config.app.get("tiktok_browser_upload_enabled", False)
+)
+tiktok_connected = tiktok_api_connected or tiktok_browser_connected
 tiktok_creator_info = {}
-if tiktok_connected:
+if tiktok_api_connected:
     tiktok_publisher = TikTokPublisher()
     if hasattr(tiktok_publisher, "query_creator_info"):
         tiktok_creator_result = tiktok_publisher.query_creator_info()
@@ -810,19 +816,16 @@ if youtube_connected:
     connected_social_platforms.append("youtube")
 if tiktok_connected:
     connected_social_platforms.append("tiktok")
-default_social_platforms = [
-    label
-    for label, platform in social_platform_options.items()
-    if platform.value in configured_social_platforms
-    and platform.value in connected_social_platforms
-]
 connect_base_url = config.app.get("public_base_url", "").rstrip("/")
 connect_url = f"{connect_base_url}/api/v1/tiktok/oauth/start" if connect_base_url else ""
 
 with st.container(border=True):
     st.write("Social publishing")
     status_cols = st.columns([1, 1, 2])
-    status_cols[0].success("TikTok connected" if tiktok_connected else "TikTok not connected")
+    if tiktok_browser_connected:
+        status_cols[0].success("TikTok browser assist enabled")
+    else:
+        status_cols[0].success("TikTok connected" if tiktok_api_connected else "TikTok not connected")
     status_cols[1].success("YouTube connected" if youtube_connected else "YouTube not connected")
     if connect_url:
         if hasattr(st, "link_button"):
@@ -840,6 +843,36 @@ with st.container(border=True):
         )
         privacy_options = ", ".join(tiktok_creator_info.get("privacy_level_options", []))
         st.caption(f"TikTok creator: {creator_name}. Allowed privacy options: {privacy_options}")
+    if tiktok_browser_connected:
+        st.caption(
+            "TikTok browser assist prepares the MP4 and caption, opens TikTok Studio, "
+            "and leaves the final Post click for manual review."
+        )
+
+    mode_cols = st.columns([1, 1])
+    selected_tiktok_publish_mode = mode_cols[0].selectbox(
+        "TikTok mode",
+        options=["api", "browser_assist"],
+        format_func=lambda value: "Official API" if value == "api" else "Browser assist",
+        index=0 if tiktok_publish_mode != "browser_assist" else 1,
+    )
+    selected_tiktok_browser_enabled = mode_cols[1].checkbox(
+        "Enable TikTok browser assist",
+        value=bool(config.app.get("tiktok_browser_upload_enabled", False)),
+    )
+    config.app["tiktok_publish_mode"] = selected_tiktok_publish_mode
+    config.app["tiktok_browser_upload_enabled"] = selected_tiktok_browser_enabled
+    if selected_tiktok_publish_mode == "browser_assist" and selected_tiktok_browser_enabled:
+        tiktok_connected = True
+    connected_social_platforms = ["youtube"] if youtube_connected else []
+    if tiktok_connected:
+        connected_social_platforms.append("tiktok")
+    default_social_platforms = [
+        label
+        for label, platform in social_platform_options.items()
+        if platform.value in configured_social_platforms
+        and platform.value in connected_social_platforms
+    ]
 
     social_cols = st.columns([2, 1, 1])
     selected_social_labels = social_cols[0].multiselect(
@@ -859,7 +892,11 @@ with st.container(border=True):
     )
     tiktok_selected = "TikTok" in selected_social_labels
     tiktok_direct_post_consent = True
-    if tiktok_selected and selected_social_auto_publish:
+    if (
+        tiktok_selected
+        and selected_social_auto_publish
+        and selected_tiktok_publish_mode != "browser_assist"
+    ):
         tiktok_direct_post_consent = st.checkbox(
             "I confirm this video, caption, hashtags, and AI/synthetic label are ready to send to TikTok.",
             value=False,

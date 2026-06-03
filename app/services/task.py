@@ -545,19 +545,32 @@ def _social_publish_preflight(params: VideoParams) -> tuple[dict, PublishPrivacy
                 {"platform": platform, "reason": "youtube_not_connected"}
             )
             continue
-        if platform == "tiktok" and not config.app.get("tiktok_upload_enabled", False):
-            summary["skipped_platforms"].append(
-                {"platform": platform, "reason": "tiktok_upload_disabled"}
-            )
-            continue
-        if platform == "tiktok" and not params.tiktok_direct_post_consent:
-            summary["skipped_platforms"].append(
-                {
-                    "platform": platform,
-                    "reason": "tiktok_direct_post_consent_missing",
-                }
-            )
-            continue
+        if platform == "tiktok":
+            tiktok_mode = str(config.app.get("tiktok_publish_mode", "api"))
+            if tiktok_mode == "browser_assist":
+                if not config.app.get("tiktok_browser_upload_enabled", False):
+                    summary["skipped_platforms"].append(
+                        {
+                            "platform": platform,
+                            "reason": "tiktok_browser_upload_disabled",
+                        }
+                    )
+                    continue
+                summary.setdefault("manual_review_platforms", []).append(platform)
+            else:
+                if not config.app.get("tiktok_upload_enabled", False):
+                    summary["skipped_platforms"].append(
+                        {"platform": platform, "reason": "tiktok_upload_disabled"}
+                    )
+                    continue
+                if not params.tiktok_direct_post_consent:
+                    summary["skipped_platforms"].append(
+                        {
+                            "platform": platform,
+                            "reason": "tiktok_direct_post_consent_missing",
+                        }
+                    )
+                    continue
         summary["enabled_platforms"].append(platform)
 
     if not summary["enabled_platforms"]:

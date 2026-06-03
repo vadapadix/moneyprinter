@@ -83,11 +83,14 @@ When `social_auto_publish` or the news run request enables publishing, the task 
 
 YouTube uses the official YouTube upload path. TikTok uses the configured TikTok Content Posting API path and still depends on TikTok review/scope constraints.
 
+TikTok can also run in `tiktok_publish_mode = "browser_assist"`. In this mode the app does not store a TikTok password and does not call the Content Posting API. It creates a local upload package with the MP4, `caption.txt`, `metadata.json`, and a helper HTML page, copies the caption to the clipboard when possible, opens TikTok Studio, and returns `manual_review_required` so the creator can review and click Post manually.
+
 Every completed task includes `publish_preflight`, which explains whether publishing was requested and which platforms were enabled or skipped before upload. Common skip reasons are:
 
 - `auto_publish_disabled`;
 - `youtube_not_connected`;
 - `tiktok_upload_disabled`;
+- `tiktok_browser_upload_disabled`;
 - `tiktok_direct_post_consent_missing`;
 - `no_enabled_platforms`.
 

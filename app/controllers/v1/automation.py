@@ -9,6 +9,7 @@ from app.models.schema import (
     AutomationRunRequest,
     NewsAutomationRunRequest,
     NewsQueryRequest,
+    PublishPrivacy,
     PublishRequest,
     SocialMetadata,
     TrendQueryRequest,
@@ -24,6 +25,7 @@ from app.services import (
 from app.services import news_sources
 from app.services import task as tm
 from app.services import trends
+from app.services.publishers.youtube import YouTubeShortsPublisher
 from app.services.social_platform_utils import platform_values
 from app.utils import utils
 
@@ -205,6 +207,53 @@ def regenerate_metadata(
     sm.state.update_task(task_id, **{**current, "social_metadata": metadata.model_dump()})
     return utils.get_response(
         200, {"task_id": task_id, "social_metadata": metadata.model_dump()}
+    )
+
+
+@router.get("/tasks/{task_id}/youtube/preview", summary="Preview YouTube upload metadata")
+def preview_youtube_upload(
+    request: Request, task_id: str = Path(..., description="Task ID")
+):
+    request_id = base.get_task_id(request)
+    task = sm.state.get_task(task_id)
+    if not task:
+        raise HttpException(
+            task_id=task_id, status_code=404, message=f"{request_id}: task not found"
+        )
+
+    video_paths = task.get("videos") or []
+    if not video_paths:
+        raise HttpException(
+            task_id=task_id,
+            status_code=400,
+            message=f"{request_id}: task has no generated videos",
+        )
+
+    if task.get("social_metadata"):
+        metadata = SocialMetadata(**task["social_metadata"])
+    else:
+        metadata = social_metadata.fallback_metadata(
+            (task.get("news_story") or {}).get("title")
+            or (task.get("trend_candidate") or {}).get("topic", ""),
+            task.get("terms", []),
+        )
+
+    publisher = YouTubeShortsPublisher.__new__(YouTubeShortsPublisher)
+    publisher.default_privacy = "private"
+    body, normalized_metadata, quality = publisher.build_upload_body(
+        video_path=video_paths[0],
+        metadata=metadata,
+        privacy=PublishPrivacy.private,
+    )
+    return utils.get_response(
+        200,
+        {
+            "task_id": task_id,
+            "video_path": video_paths[0],
+            "upload_body": body,
+            "normalized_metadata": normalized_metadata.model_dump(),
+            "metadata_quality": quality,
+        },
     )
 
 

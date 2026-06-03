@@ -24,6 +24,47 @@ class YouTubeShortsPublisher(Publisher):
     def is_configured(self) -> bool:
         return bool(self.enabled and self.access_token)
 
+    def build_upload_body(
+        self,
+        video_path: str,
+        metadata: SocialMetadata,
+        privacy: PublishPrivacy = PublishPrivacy.private,
+    ) -> tuple[dict, SocialMetadata, dict]:
+        normalized_metadata = social_metadata.normalize_metadata(
+            metadata,
+            default_title=os.path.splitext(os.path.basename(video_path))[0],
+        )
+        privacy_status = privacy.value if privacy else self.default_privacy
+        if privacy_status == "draft":
+            privacy_status = "private"
+
+        body = {
+            "snippet": {
+                "title": normalized_metadata.title,
+                "description": normalized_metadata.description,
+                "tags": normalized_metadata.youtube_tags,
+                "categoryId": normalized_metadata.category_id or "22",
+            },
+            "status": {
+                "privacyStatus": privacy_status,
+                "selfDeclaredMadeForKids": False,
+                "containsSyntheticMedia": normalized_metadata.contains_synthetic_media,
+            },
+        }
+        quality = {
+            "title": normalized_metadata.title,
+            "title_source": "metadata" if metadata.title == normalized_metadata.title else "normalized_fallback",
+            "description_length": len(normalized_metadata.description or ""),
+            "tag_count": len(normalized_metadata.youtube_tags or []),
+            "has_shorts_marker": "#shorts" in (
+                f"{normalized_metadata.title} {normalized_metadata.description} "
+                f"{' '.join(normalized_metadata.hashtags)}"
+            ).lower(),
+            "contains_synthetic_media": normalized_metadata.contains_synthetic_media,
+            "privacy_status": privacy_status,
+        }
+        return body, normalized_metadata, quality
+
     def _upload_once(self, video_path: str, body: dict) -> requests.Response:
         with open(video_path, "rb") as video_file:
             return requests.post(
@@ -63,27 +104,11 @@ class YouTubeShortsPublisher(Publisher):
                 error=f"Video file not found: {video_path}",
             )
 
-        metadata = social_metadata.normalize_metadata(
-            metadata,
-            default_title=os.path.splitext(os.path.basename(video_path))[0],
+        body, normalized_metadata, quality = self.build_upload_body(
+            video_path=video_path,
+            metadata=metadata,
+            privacy=privacy,
         )
-        privacy_status = privacy.value if privacy else self.default_privacy
-        if privacy_status == "draft":
-            privacy_status = "private"
-
-        body = {
-            "snippet": {
-                "title": metadata.title,
-                "description": metadata.description,
-                "tags": metadata.youtube_tags,
-                "categoryId": metadata.category_id or "22",
-            },
-            "status": {
-                "privacyStatus": privacy_status,
-                "selfDeclaredMadeForKids": False,
-                "containsSyntheticMedia": metadata.contains_synthetic_media,
-            },
-        }
 
         try:
             response = self._upload_once(video_path, body)
@@ -101,7 +126,12 @@ class YouTubeShortsPublisher(Publisher):
                 status="uploaded" if video_id else "failed",
                 post_id=video_id,
                 url=f"https://www.youtube.com/shorts/{video_id}" if video_id else "",
-                raw=payload,
+                raw={
+                    **payload,
+                    "upload_body": body,
+                    "normalized_metadata": normalized_metadata.model_dump(),
+                    "metadata_quality": quality,
+                },
             )
         except requests.exceptions.HTTPError as exc:
             response_text = ""

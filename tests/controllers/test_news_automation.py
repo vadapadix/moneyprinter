@@ -185,6 +185,36 @@ class NewsAutomationControllerTest(unittest.TestCase):
             {"auto_publish": True, "enabled_platforms": ["youtube"]},
         )
 
+    def test_youtube_preview_normalizes_unknown_title_without_uploading(self):
+        with mock.patch.object(
+            automation.sm.state,
+            "get_task",
+            return_value={
+                "videos": ["D:/tmp/story-final.mp4"],
+                "social_metadata": {
+                    "title": "unknown",
+                    "description": "",
+                    "hashtags": [],
+                    "youtube_tags": [],
+                    "category_id": "22",
+                    "contains_synthetic_media": True,
+                    "platform_captions": {},
+                },
+                "terms": ["world news"],
+            },
+        ):
+            response = automation.preview_youtube_upload(
+                request=mock.Mock(headers={}), task_id="task-1"
+            )
+
+        self.assertEqual(response["status"], 200)
+        self.assertEqual(response["data"]["upload_body"]["snippet"]["title"], "story-final")
+        self.assertEqual(
+            response["data"]["metadata_quality"]["title_source"],
+            "normalized_fallback",
+        )
+        self.assertTrue(response["data"]["metadata_quality"]["has_shorts_marker"])
+
     def test_news_automation_analytics_endpoint_summarizes_state_tasks(self):
         with mock.patch.object(
             automation.sm.state,

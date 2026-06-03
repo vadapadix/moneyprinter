@@ -359,3 +359,24 @@ Search variants now include exact quoted headline, keyword-enriched headline, pr
 - [x] **Step 3: Record accepted relevance**
 
 Each accepted yt-dlp clip records matched terms, coverage, title, and URL in diagnostics, making the final news media selection auditable.
+
+## Task 16: Make YouTube Upload Metadata Previewable
+
+**Files:**
+- Modify: `app/services/publishers/youtube.py`
+- Modify: `app/controllers/v1/automation.py`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/services/test_youtube_publisher.py`
+- Test: `tests/controllers/test_news_automation.py`
+
+- [x] **Step 1: Extract YouTube upload body construction**
+
+`YouTubeShortsPublisher.build_upload_body()` now returns the normalized API body, normalized metadata, and a metadata quality summary before any upload call.
+
+- [x] **Step 2: Include metadata evidence in upload results**
+
+Successful YouTube uploads now include `upload_body`, `normalized_metadata`, and `metadata_quality` in the raw result so `unknown` title fallback and tag/description state are auditable.
+
+- [x] **Step 3: Add a no-upload preview endpoint**
+
+`GET /api/v1/tasks/{task_id}/youtube/preview` returns the upload body and metadata quality for the first generated video without calling the YouTube API.

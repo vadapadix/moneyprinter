@@ -116,6 +116,16 @@ def _entry_relevance(entry: dict, query: str) -> dict:
     }
 
 
+def _accepted_relevance(entry: dict, relevance: dict) -> dict:
+    return {
+        "title": str(entry.get("title") or "")[:160],
+        "webpage_url": str(entry.get("webpage_url") or "")[:240],
+        "matched_terms": relevance["matched_terms"],
+        "coverage": relevance["coverage"],
+        "required_overlap": relevance["required_overlap"],
+    }
+
+
 def _is_relevant_entry(entry: dict, query: str) -> bool:
     return bool(_entry_relevance(entry, query)["is_relevant"])
 
@@ -135,14 +145,23 @@ def _query_variants(query: str, source_context: dict | None = None) -> list[str]
     title = re.sub(r"\s+", " ", (query or source_context.get("title") or "").strip())
     provider = str(source_context.get("provider") or "").strip()
     category = str(source_context.get("category") or "").strip()
+    keywords = [
+        str(keyword).strip()
+        for keyword in source_context.get("keywords") or []
+        if str(keyword).strip()
+    ][:4]
 
     candidates = [
         title,
+        f'"{title}"',
         " ".join([title, provider]).strip(),
         " ".join([title, category]).strip(),
+        " ".join([title, *keywords]).strip(),
         f"{title} latest footage",
         f"{title} official video",
         f"{title} eyewitness video",
+        f"{title} press conference",
+        f"{title} live report",
     ]
     variants = []
     seen = set()
@@ -162,7 +181,14 @@ def _candidate_targets(query: str, limit: int, source_context: dict | None = Non
     if source_url and config.app.get("news_ytdlp_try_source_url", True):
         targets.append({"kind": "source_url", "query": source_url, "target": source_url})
 
-    per_search_limit = max(1, min(limit, int(config.app.get("news_ytdlp_results_per_query", 3))))
+    try:
+        overfetch_multiplier = max(
+            1, int(config.app.get("news_ytdlp_overfetch_multiplier", 3))
+        )
+    except (TypeError, ValueError):
+        overfetch_multiplier = 3
+    configured_results = int(config.app.get("news_ytdlp_results_per_query", 3))
+    per_search_limit = max(1, min(max(configured_results, limit * overfetch_multiplier), 12))
     for variant in _query_variants(query, source_context):
         if config.app.get("news_ytdlp_web_search_enabled", True):
             try:
@@ -248,6 +274,7 @@ def search_and_download_report(
                     "query": target_info["query"],
                     "target": target,
                     "downloaded_count": 0,
+                    "accepted_relevance": [],
                     "skipped_irrelevant_count": 0,
                     "skipped_relevance": [],
                     "error": "",
@@ -271,6 +298,9 @@ def search_and_download_report(
                         if path and os.path.isfile(path) and path not in downloaded:
                             downloaded.append(path)
                             attempt["downloaded_count"] += 1
+                            attempt["accepted_relevance"].append(
+                                _accepted_relevance(entry, relevance)
+                            )
                         if len(downloaded) >= limit:
                             break
                 except Exception as exc:

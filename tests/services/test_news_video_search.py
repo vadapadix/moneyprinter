@@ -125,8 +125,41 @@ class NewsVideoSearchTest(unittest.TestCase):
 
         self.assertEqual(
             captured["options"]["targets"][0],
-            "ytsearch1:major news headline English news video",
+            "ytsearch3:major news headline English news video",
         )
+
+    def test_query_variants_include_exact_headline_and_news_report_angles(self):
+        variants = news_video_search._query_variants(
+            "central bank announces rate decision",
+            {
+                "provider": "guardian",
+                "category": "business",
+                "keywords": ["inflation", "markets"],
+            },
+        )
+
+        self.assertIn('"central bank announces rate decision"', variants)
+        self.assertIn("central bank announces rate decision inflation markets", variants)
+        self.assertIn("central bank announces rate decision press conference", variants)
+        self.assertIn("central bank announces rate decision live report", variants)
+
+    def test_candidate_targets_overfetch_youtube_results_for_multiple_clips(self):
+        with mock.patch.dict(
+            "app.services.news_video_search.config.app",
+            {
+                "news_ytdlp_web_search_enabled": False,
+                "news_ytdlp_results_per_query": 2,
+                "news_ytdlp_overfetch_multiplier": 4,
+            },
+            clear=False,
+        ):
+            targets = news_video_search._candidate_targets(
+                "major news headline",
+                limit=2,
+                source_context={},
+            )
+
+        self.assertEqual(targets[0]["target"], "ytsearch8:major news headline English news video")
 
     def test_search_report_skips_irrelevant_youtube_entries_and_tries_next_variant(self):
         calls = []
@@ -173,6 +206,7 @@ class NewsVideoSearchTest(unittest.TestCase):
         self.assertTrue(result.paths[0].endswith("relevant.mp4"))
         self.assertGreaterEqual(len(calls), 2)
         self.assertEqual(result.attempts[0]["skipped_irrelevant_count"], 1)
+        self.assertEqual(result.attempts[1]["accepted_relevance"][0]["matched_terms"], ["headline", "major"])
 
     def test_search_report_requires_stronger_overlap_for_long_headline(self):
         calls = []

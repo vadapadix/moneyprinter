@@ -339,3 +339,23 @@ News history now stores Unicode title tokens and applies `news_title_similarity_
 - [x] **Step 3: Cover behavior with focused tests**
 
 Controller tests verify test upload uses the configured publisher selector. News history tests verify non-Latin duplicate headlines and same-batch near-duplicates are skipped.
+
+## Task 15: Deepen Headline Video Search Evidence
+
+**Files:**
+- Modify: `app/services/news_video_search.py`
+- Modify: `config.example.toml`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/services/test_news_video_search.py`
+
+- [x] **Step 1: Overfetch YouTube candidates**
+
+`ytsearch` now requests more candidates than the final clip count with `news_ytdlp_overfetch_multiplier`, so the pipeline can find several relevant videos without accepting the first weak match.
+
+- [x] **Step 2: Add headline-focused search variants**
+
+Search variants now include exact quoted headline, keyword-enriched headline, press-conference, and live-report angles in addition to latest/official/eyewitness footage.
+
+- [x] **Step 3: Record accepted relevance**
+
+Each accepted yt-dlp clip records matched terms, coverage, title, and URL in diagnostics, making the final news media selection auditable.

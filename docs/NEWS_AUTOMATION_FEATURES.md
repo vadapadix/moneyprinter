@@ -66,6 +66,8 @@ For news tasks, `news_preserve_media_order = true` keeps direct news media, rela
 
 The `yt-dlp` stage records every attempted target in diagnostics, including downloaded counts, skipped weakly relevant entries, matched terms, keyword coverage, and target errors. The relevance gate is controlled by `news_ytdlp_min_keyword_overlap` and `news_ytdlp_min_keyword_coverage`; this makes it harder for a random popular video with only one weak word match to enter the final edit.
 
+YouTube search overfetches candidates with `news_ytdlp_overfetch_multiplier` and then filters them by headline overlap. Each accepted clip records `accepted_relevance` with the matched headline terms and coverage, so diagnostics show why a video was allowed into the final edit instead of only showing failed candidates.
+
 ## 6. Social Metadata
 
 After the final video is generated, the app asks the LLM for:

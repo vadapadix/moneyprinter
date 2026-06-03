@@ -13,7 +13,14 @@ from app.models.schema import (
     SocialMetadata,
     TrendQueryRequest,
 )
-from app.services import automation, news_diagnostics, social_metadata, social_publisher, state as sm
+from app.services import (
+    automation,
+    news_analytics,
+    news_diagnostics,
+    social_metadata,
+    social_publisher,
+    state as sm,
+)
 from app.services import news_sources
 from app.services import task as tm
 from app.services import trends
@@ -142,6 +149,15 @@ def create_news_automation_run(request: Request, body: NewsAutomationRunRequest)
             "queued_count": len(queued_tasks),
         },
     )
+
+
+@router.get("/automation/news/analytics", summary="Get news automation analytics")
+def get_news_automation_analytics(request: Request):
+    tasks, total = sm.state.get_all_tasks(page=1, page_size=1000)
+    summary = news_analytics.summarize_state_tasks(tasks)
+    summary["returned_task_count"] = len(tasks)
+    summary["state_task_count"] = total
+    return utils.get_response(200, summary)
 
 
 @router.get("/tasks/{task_id}/publish", summary="Get publish status")

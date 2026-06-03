@@ -246,3 +246,25 @@ Completed tasks and `stop_at="materials"` runs now persist `news_media_summary` 
 - [x] **Step 3: Expose summary in UI/API**
 
 Streamlit inline news automation payloads and `/api/v1/automation/tasks/{task_id}/publish` now include the same media summary so source/fallback behavior is visible without reading terminal logs.
+
+## Task 11: Add Local Automation Analytics
+
+**Files:**
+- Create: `app/services/news_analytics.py`
+- Modify: `app/controllers/v1/automation.py`
+- Modify: `webui/Main.py`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/services/test_news_analytics.py`
+- Test: `tests/controllers/test_news_automation.py`
+
+- [x] **Step 1: Summarize run quality**
+
+`news_analytics.summarize_news_items()` now counts generated videos, completed/failed tasks, upload attempts, upload success/failure, per-platform results, non-stock media, stock fallback usage, stock-only runs, no-media runs, and weak `unknown` titles.
+
+- [x] **Step 2: Expose current-state analytics**
+
+`/api/v1/automation/news/analytics` returns a local operational summary for news automation tasks currently in app state.
+
+- [x] **Step 3: Include analytics in Streamlit inline runs**
+
+Streamlit news automation responses now include an `analytics` object above the detailed per-task results.

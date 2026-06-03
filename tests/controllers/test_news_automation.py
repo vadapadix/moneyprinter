@@ -177,6 +177,37 @@ class NewsAutomationControllerTest(unittest.TestCase):
             {"status": "news_media_ready", "total_video_count": 2},
         )
 
+    def test_news_automation_analytics_endpoint_summarizes_state_tasks(self):
+        with mock.patch.object(
+            automation.sm.state,
+            "get_all_tasks",
+            return_value=(
+                [
+                    {
+                        "task_id": "task-1",
+                        "news_story": {"title": "Story"},
+                        "state": 1,
+                        "videos": ["final-1.mp4"],
+                        "publish_results": [{"platform": "youtube", "success": True}],
+                        "news_media_summary": {
+                            "status": "news_media_ready",
+                            "non_stock_video_count": 2,
+                        },
+                    }
+                ],
+                1,
+            ),
+        ):
+            response = automation.get_news_automation_analytics(
+                request=mock.Mock(headers={})
+            )
+
+        self.assertEqual(response["status"], 200)
+        self.assertEqual(response["data"]["task_count"], 1)
+        self.assertEqual(response["data"]["generated_video_count"], 1)
+        self.assertEqual(response["data"]["publish_success_count"], 1)
+        self.assertEqual(response["data"]["state_task_count"], 1)
+
     def test_prepare_news_run_skips_previously_reserved_stories(self):
         used = NewsStory(
             provider="newsdata",

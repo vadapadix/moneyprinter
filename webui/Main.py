@@ -27,6 +27,7 @@ from app.models.schema import (
     VideoTransitionMode,
 )
 from app.services import automation as automation_service
+from app.services import news_analytics
 from app.services import news_diagnostics
 from app.services import news_history
 from app.services import llm, voice
@@ -180,6 +181,7 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
         "run_id": prepared.get("run_id"),
         "queued_count": len(tasks),
         "ranked_story_count": len(prepared.get("ranked_stories", [])),
+        "analytics": news_analytics.summarize_news_items(results),
         "results": results,
     }
 

@@ -129,3 +129,19 @@ Important events:
 - `social_publish_completed`.
 
 Use these events to see exactly why a run used stock footage, skipped a platform, or uploaded with specific metadata.
+
+## 10. Local Analytics
+
+Streamlit inline news runs include an `analytics` object, and the API exposes `/api/v1/automation/news/analytics`.
+
+The analytics summary is local operational telemetry. It does not send data to an external analytics service. It tracks:
+
+- generated task and video counts;
+- generation success/failure rate;
+- upload attempts, successful uploads, and failed uploads;
+- per-platform upload success/failure counts;
+- non-stock video count;
+- stock fallback and stock-only task counts;
+- `unknown` or otherwise weak metadata title count.
+
+Use this summary to confirm that automation is actually moving from article selection to video generation to publishing, not just producing files locally.

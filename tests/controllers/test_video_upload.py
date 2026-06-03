@@ -39,7 +39,7 @@ class VideoUploadControllerTest(unittest.TestCase):
             "get_task_id",
             return_value="request-1",
         ), mock.patch.object(
-            video.social_publisher,
+            video.upload_tests.social_publisher,
             "get_publisher",
             return_value=publisher,
         ) as get_publisher_mock:
@@ -53,6 +53,17 @@ class VideoUploadControllerTest(unittest.TestCase):
         self.assertEqual(response["data"]["results"]["tiktok"]["raw"], {"mode": "browser_assist"})
         get_publisher_mock.assert_called_once_with("tiktok")
         self.assertFalse(os.path.exists(os.path.join(temp_dir, "test_upload_request-1_short.mp4")))
+
+    def test_test_upload_rejects_unknown_platform(self):
+        upload = FakeUploadFile()
+        with mock.patch.object(video.base, "get_task_id", return_value="request-1"):
+            with self.assertRaises(video.HttpException) as exc:
+                video.test_upload_video(
+                    request=mock.Mock(headers={}), file=upload, platform="instagram"
+                )
+
+        upload.close()
+        self.assertEqual(exc.exception.status_code, 400)
 
 
 if __name__ == "__main__":

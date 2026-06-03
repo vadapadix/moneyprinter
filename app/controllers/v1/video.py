@@ -20,7 +20,6 @@ from app.models.schema import (
     AudioRequest,
     BgmRetrieveResponse,
     BgmUploadResponse,
-    SocialMetadata,
     SubtitleRequest,
     TaskDeletionResponse,
     TaskQueryRequest,
@@ -30,9 +29,9 @@ from app.models.schema import (
     VideoMaterialUploadResponse,
     VideoMaterialRetrieveResponse
 )
-from app.services import social_publisher
 from app.services import state as sm
 from app.services import task as tm
+from app.services import upload_tests
 from app.utils import file_security, utils
 
 # 认证依赖项
@@ -404,9 +403,6 @@ async def download_video(request: Request, file_path: str):
         media_type=f"video/{extension[1:]}",
     )
 
-from app.models.schema import PublishPrivacy
-
-
 @router.post("/test-upload", summary="Test video upload to TikTok and YouTube")
 def test_upload_video(
     request: Request,
@@ -425,6 +421,13 @@ def test_upload_video(
         dict: Upload test results for each platform
     """
     request_id = base.get_task_id(request)
+    platform = (platform or "tiktok").lower()
+    if platform not in upload_tests.TEST_UPLOAD_PLATFORMS:
+        raise HttpException(
+            task_id=request_id,
+            status_code=400,
+            message="Platform must be one of: tiktok, youtube, both",
+        )
     
     # Validate file
     if not file.filename or not file.filename.lower().endswith('.mp4'):
@@ -444,55 +447,17 @@ def test_upload_video(
             file.file.seek(0)
             buffer.write(file.file.read())
         
-        # Prepare metadata for testing
-        metadata = SocialMetadata(
-            title="Private YouTube Shorts upload test",
-            description="Test video upload",
-            platform_captions={"tiktok": "Test upload #test", "youtube": "Test upload #test"},
-            hashtags=["#test", "#upload", "#Shorts"],
-            youtube_tags=["test", "upload", "shorts"],
-            contains_synthetic_media=False
+        upload_result = upload_tests.run_upload_test(
+            video_path=temp_file_path,
+            platform=platform,
+            request_id=request_id,
         )
-        
-        results = {}
-        
-        # Test TikTok upload
-        if platform in ["tiktok", "both"]:
-            logger.info(f"Testing TikTok upload for {request_id}")
-            tiktok_publisher = social_publisher.get_publisher("tiktok")
-            tiktok_result = tiktok_publisher.publish(
-                video_path=temp_file_path,
-                metadata=metadata,
-                privacy=PublishPrivacy.private
-            )
-            results["tiktok"] = tiktok_result.to_dict()
-            
-            if not tiktok_result.success:
-                logger.error(f"TikTok test upload failed: {tiktok_result.error}")
-        
-        # Test YouTube upload
-        if platform in ["youtube", "both"]:
-            logger.info(f"Testing YouTube upload for {request_id}")
-            youtube_publisher = social_publisher.get_publisher("youtube")
-            youtube_result = youtube_publisher.publish(
-                video_path=temp_file_path,
-                metadata=metadata,
-                privacy=PublishPrivacy.private,
-            )
-            results["youtube"] = youtube_result.to_dict()
-            
-            if not youtube_result.success:
-                logger.error(f"YouTube test upload failed: {youtube_result.error}")
         
         # Clean up temp file
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)
         
-        return utils.get_response(200, {
-            "request_id": request_id,
-            "platforms_tested": platform if platform != "both" else ["tiktok", "youtube"],
-            "results": results
-        })
+        return utils.get_response(200, upload_result)
         
     except Exception as e:
         logger.error(f"Test upload failed for {request_id}: {str(e)}")

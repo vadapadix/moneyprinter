@@ -400,3 +400,25 @@ Video rendering logs the selected BGM file, selection strategy, and candidate co
 - [x] **Step 3: Cover deterministic behavior with tests**
 
 Unit tests verify the deterministic strategy stays stable for the same story and does not call `random.choice`.
+
+## Task 18: Share Upload Test Execution Between UI and API
+
+**Files:**
+- Add: `app/services/upload_tests.py`
+- Modify: `app/controllers/v1/video.py`
+- Modify: `webui/Main.py`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/services/test_upload_tests.py`
+- Test: `tests/controllers/test_video_upload.py`
+
+- [x] **Step 1: Extract upload-test service**
+
+TikTok, YouTube, and both-platform test uploads now run through one service that uses the configured publisher selector.
+
+- [x] **Step 2: Reuse service from API and Streamlit**
+
+`/api/v1/test-upload` and Streamlit inline test upload actions now call the same upload-test implementation.
+
+- [x] **Step 3: Validate unsupported platforms before upload**
+
+Unknown test-upload platforms return a validation error before any publisher is called.

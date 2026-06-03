@@ -91,6 +91,8 @@ TikTok can also run in `tiktok_publish_mode = "browser_assist"`. In this mode th
 
 Upload tests use the same configured publisher selector as real task publishing. This means the Streamlit upload-test buttons and `/api/v1/test-upload` exercise YouTube upload, TikTok API upload, or TikTok browser assist according to the current config instead of bypassing the selected mode.
 
+The upload-test implementation is shared by Streamlit inline actions and the FastAPI endpoint, so a UI button click and an API request now run through the same publisher path and validation.
+
 `GET /api/v1/tasks/{task_id}/youtube/preview` returns the exact YouTube upload body that would be sent for the first generated video without uploading anything. The preview includes `metadata_quality`, which reports whether the title came from the generated metadata or from a normalized fallback, the tag count, description length, Shorts marker presence, synthetic-media flag, and privacy status. Real YouTube upload results include the same `upload_body`, `normalized_metadata`, and `metadata_quality` in `raw`.
 
 Every completed task includes `publish_preflight`, which explains whether publishing was requested and which platforms were enabled or skipped before upload. Common skip reasons are:

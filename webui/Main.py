@@ -33,6 +33,7 @@ from app.services import news_history
 from app.services import llm, voice
 from app.services import social_publisher
 from app.services import task as tm
+from app.services import upload_tests
 from app.services import youtube_oauth
 from app.services.publishers.tiktok import TikTokPublisher
 from app.services.publishers.youtube import YouTubeShortsPublisher
@@ -65,46 +66,17 @@ def run_test_upload_inline(uploaded_file, platform: str) -> dict:
     temp_dir = utils.storage_dir("temp", create=True)
     safe_name = os.path.basename(uploaded_file.name or "upload-test.mp4")
     temp_file_path = os.path.join(temp_dir, f"test_upload_{request_id}_{safe_name}")
-    metadata = SocialMetadata(
-        title="DOLIDE News private upload test",
-        description="Private upload test for DOLIDE News automation. #Shorts",
-        hashtags=["#Shorts", "#DOLIDENews", "#test"],
-        youtube_tags=["DOLIDE News", "Shorts", "test upload"],
-        platform_captions={
-            "tiktok": "Private DOLIDE News upload test #DOLIDENews #test",
-            "youtube": "Private upload test for DOLIDE News automation. #Shorts",
-        },
-        contains_synthetic_media=True,
-    )
-    results = {}
     try:
         with open(temp_file_path, "wb") as handle:
             handle.write(uploaded_file.getbuffer())
-
-        if platform in ("tiktok", "both"):
-            tiktok_result = social_publisher.get_publisher("tiktok").publish(
-                video_path=temp_file_path,
-                metadata=metadata,
-                privacy=PublishPrivacy.private,
-            )
-            results["tiktok"] = tiktok_result.to_dict()
-
-        if platform in ("youtube", "both"):
-            youtube_result = social_publisher.get_publisher("youtube").publish(
-                video_path=temp_file_path,
-                metadata=metadata,
-                privacy=PublishPrivacy.private,
-            )
-            results["youtube"] = youtube_result.to_dict()
+        return upload_tests.run_upload_test(
+            video_path=temp_file_path,
+            platform=platform,
+            request_id=request_id,
+        )
     finally:
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)
-
-    return {
-        "request_id": request_id,
-        "platforms_tested": platform if platform != "both" else ["tiktok", "youtube"],
-        "results": results,
-    }
 
 
 class _InlineUploadResponse:

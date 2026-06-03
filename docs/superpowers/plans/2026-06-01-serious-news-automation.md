@@ -292,3 +292,27 @@ Tasks record `social_publish_preflight` diagnostics and include `publish_preflig
 - [x] **Step 3: Count blocked publishing**
 
 Local analytics now counts tasks blocked before upload and groups them by preflight skip reason.
+
+## Task 13: Fix Branding, Telethon Premium Search, and Stock Dominance
+
+**Files:**
+- Modify: `app/services/video.py`
+- Modify: `app/services/news_sources/telethon_source.py`
+- Modify: `app/services/task.py`
+- Modify: `config.example.toml`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/services/test_video_branding.py`
+- Test: `tests/services/test_news_providers.py`
+- Test: `tests/services/test_task_news_history.py`
+
+- [x] **Step 1: Coerce branding numeric config safely**
+
+Brand intro and watermark font/stroke values now coerce float-like config values to integers before passing them to MoviePy text rendering.
+
+- [x] **Step 2: Avoid premium-only Telegram search**
+
+Telethon global search now scans accessible dialogs and joined channels instead of using Telegram's premium-only `SearchPostsRequest`.
+
+- [x] **Step 3: Preserve news media priority**
+
+News tasks force sequential media order by default so direct/related news footage stays ahead of stock fallback in the final video.

@@ -6,6 +6,7 @@ from app.services import news_sources
 from app.services.news_sources import get_provider
 from app.services.news_sources.guardian import GuardianProvider
 from app.services.news_sources.newsdata import NewsDataProvider
+from app.services.news_sources import telethon_source
 
 
 class FakeNewsDataResponse:
@@ -185,6 +186,18 @@ class NewsProviderTest(unittest.TestCase):
         self.assertEqual(
             [story.title for story in stories],
             ["Used one", "Used two", "Fresh from second source"],
+        )
+
+    def test_telethon_query_matching_handles_non_latin_text(self):
+        message = mock.Mock(message="Українська новина про енергетику та безпеку")
+
+        self.assertTrue(
+            telethon_source._message_matches_query(
+                message, "Українська безпека сьогодні"
+            )
+        )
+        self.assertFalse(
+            telethon_source._message_matches_query(message, "football transfer market")
         )
 
 

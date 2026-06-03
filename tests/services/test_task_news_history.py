@@ -177,6 +177,25 @@ class TaskNewsHistoryTest(unittest.TestCase):
         self.assertEqual(summary["skip_reason"], "auto_publish_disabled")
         self.assertEqual(summary["requested_platforms"], ["youtube"])
 
+    def test_news_concat_mode_preserves_source_media_order_by_default(self):
+        params = VideoParams(
+            video_subject="News",
+            video_source="news",
+            video_concat_mode="random",
+        )
+
+        with mock.patch.dict(
+            "app.services.task.config.app",
+            {"news_preserve_media_order": True},
+            clear=False,
+        ):
+            task._prepare_news_concat_mode("task-order", params, material_count=4)
+
+        self.assertEqual(params.video_concat_mode.value, "sequential")
+        diagnostics = news_diagnostics.get_task_diagnostics("task-order")
+        self.assertEqual(diagnostics[-1]["event"], "news_media_order_preserved")
+        self.assertEqual(diagnostics[-1]["properties"]["material_count"], 4)
+
 
 if __name__ == "__main__":
     unittest.main()

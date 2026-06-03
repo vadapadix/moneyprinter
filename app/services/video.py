@@ -51,6 +51,14 @@ def _watermark_position(position: str, video_width: int, video_height: int, clip
     return positions.get(position, positions["top-right"])
 
 
+def _int_config(key: str, default: int, minimum: int = 0) -> int:
+    try:
+        value = int(round(float(config.app.get(key, default))))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, value)
+
+
 def _create_brand_watermark(video_width: int, video_height: int, duration: float):
     if not config.app.get("brand_watermark_enabled", True):
         return None
@@ -68,10 +76,10 @@ def _create_brand_watermark(video_width: int, video_height: int, duration: float
     clip = TextClip(
         text=text,
         font=font_path,
-        font_size=int(config.app.get("brand_watermark_font_size", 34)),
+        font_size=_int_config("brand_watermark_font_size", 34, 1),
         color=str(config.app.get("brand_watermark_color", "#FFFFFF")),
         stroke_color=str(config.app.get("brand_watermark_stroke_color", "#000000")),
-        stroke_width=float(config.app.get("brand_watermark_stroke_width", 2)),
+        stroke_width=_int_config("brand_watermark_stroke_width", 2),
     ).with_duration(duration)
 
     opacity = float(config.app.get("brand_watermark_opacity", 0.85))
@@ -141,10 +149,10 @@ def _create_brand_intro(video_width: int, video_height: int, duration: float, pa
         label_clip = TextClip(
             text=label_text,
             font=font_path,
-            font_size=int(config.app.get("brand_intro_label_font_size", 30)),
+            font_size=_int_config("brand_intro_label_font_size", 30, 1),
             color=str(config.app.get("brand_intro_label_color", "#FF4B4B")),
             stroke_color=str(config.app.get("brand_intro_stroke_color", "#000000")),
-            stroke_width=float(config.app.get("brand_intro_stroke_width", 1)),
+            stroke_width=_int_config("brand_intro_stroke_width", 1),
         ).with_start(0).with_duration(intro_duration)
         clips.append(label_clip.with_position(("center", int(video_height * 0.28))))
 
@@ -152,10 +160,10 @@ def _create_brand_intro(video_width: int, video_height: int, duration: float, pa
         brand_clip = TextClip(
             text=brand_text,
             font=font_path,
-            font_size=int(config.app.get("brand_intro_font_size", 78)),
+            font_size=_int_config("brand_intro_font_size", 78, 1),
             color=str(config.app.get("brand_intro_color", "#FFFFFF")),
             stroke_color=str(config.app.get("brand_intro_stroke_color", "#000000")),
-            stroke_width=float(config.app.get("brand_intro_stroke_width", 3)),
+            stroke_width=_int_config("brand_intro_stroke_width", 3),
         ).with_start(0).with_duration(intro_duration)
         clips.append(brand_clip.with_position(("center", int(video_height * 0.34))))
 
@@ -164,15 +172,15 @@ def _create_brand_intro(video_width: int, video_height: int, duration: float, pa
             headline,
             max_width=video_width * 0.82,
             font=font_path,
-            fontsize=int(config.app.get("brand_intro_headline_font_size", 38)),
+            fontsize=_int_config("brand_intro_headline_font_size", 38, 1),
         )
         headline_clip = TextClip(
             text=wrapped_headline,
             font=font_path,
-            font_size=int(config.app.get("brand_intro_headline_font_size", 38)),
+            font_size=_int_config("brand_intro_headline_font_size", 38, 1),
             color=str(config.app.get("brand_intro_headline_color", "#FFFFFF")),
             stroke_color=str(config.app.get("brand_intro_stroke_color", "#000000")),
-            stroke_width=float(config.app.get("brand_intro_stroke_width", 2)),
+            stroke_width=_int_config("brand_intro_stroke_width", 2),
             size=(int(video_width * 0.86), None),
             text_align="center",
         ).with_start(0).with_duration(intro_duration)

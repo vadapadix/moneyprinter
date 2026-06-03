@@ -356,6 +356,7 @@ news_related_telegram_video_search_limit = 6
 news_stock_fallback_source = "pexels"
 news_min_clips = 3
 news_video_clip_duration = 5
+news_preserve_media_order = true
 news_auto_limit = 1
 
 ########## News branding
@@ -398,3 +399,5 @@ telegram_api_hash = ""
 telegram_session_file = ""
 telegram_user_channels = [] # e.g. ["@BBCBreaking", "@ReutersWorld"]
 telegram_global_search = false
+telegram_recent_scan_limit = 40
+telegram_global_search_dialog_limit = 25

@@ -13,6 +13,8 @@ The default source is `auto`. In this mode the app searches every provider liste
 
 Provider results are normalized to `NewsStory` objects with title, summary, source URL, publication date, keywords, and media assets. Auto mode gathers candidates from every configured provider before ranking, and duplicate URLs are removed before the automation queue is built.
 
+When `telegram_global_search = true`, Telethon does not use Telegram's premium-only global `SearchPostsRequest`. It scans accessible dialogs and joined channels instead, using `telegram_global_search_dialog_limit` and `telegram_recent_scan_limit`, so regular Telegram accounts can still find matching recent posts from sources the account can access.
+
 ## 2. Unique Story Memory
 
 Every queued story is reserved in `storage/news/history.json`. The primary key is the source URL when available, otherwise a provider/title/date hash. For sufficiently specific headlines, the ledger also stores a title signature, so the same article can be skipped even when it appears at a different URL.
@@ -57,6 +59,8 @@ The media pipeline tries sources in this order:
 6. Stock fallback from `news_stock_fallback_source`.
 
 The target clip count is controlled by `news_min_clips`.
+
+For news tasks, `news_preserve_media_order = true` keeps direct news media, related Telegram clips, article videos, and `yt-dlp` footage ahead of stock fallback in the final edit. Stock clips are still allowed as filler, but they are not randomly shuffled in front of real news material.
 
 The `yt-dlp` stage records every attempted target in diagnostics, including downloaded counts, skipped weakly relevant entries, matched terms, keyword coverage, and target errors. The relevance gate is controlled by `news_ytdlp_min_keyword_overlap` and `news_ytdlp_min_keyword_coverage`; this makes it harder for a random popular video with only one weak word match to enter the final edit.
 

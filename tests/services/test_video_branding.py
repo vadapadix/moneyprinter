@@ -32,6 +32,41 @@ class VideoBrandingTest(unittest.TestCase):
 
         self.assertTrue(bgm_file.endswith("output004.mp3"))
 
+    def test_brand_watermark_coerces_float_stroke_width_to_int(self):
+        class FakeClip:
+            w = 120
+            h = 32
+
+            def with_duration(self, duration):
+                return self
+
+            def with_opacity(self, opacity):
+                return self
+
+            def with_position(self, position):
+                return self
+
+        captured = {}
+
+        def fake_text_clip(**kwargs):
+            captured.update(kwargs)
+            return FakeClip()
+
+        with mock.patch.dict(
+            "app.services.video.config.app",
+            {
+                "brand_watermark_enabled": True,
+                "brand_watermark_stroke_width": 1.5,
+                "brand_watermark_font_size": 34.0,
+            },
+            clear=False,
+        ), mock.patch.object(video, "TextClip", side_effect=fake_text_clip):
+            video._create_brand_watermark(1080, 1920, 10)
+
+        self.assertIsInstance(captured["stroke_width"], int)
+        self.assertEqual(captured["stroke_width"], 2)
+        self.assertIsInstance(captured["font_size"], int)
+
 
 if __name__ == "__main__":
     unittest.main()

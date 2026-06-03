@@ -10,12 +10,47 @@ from app.utils import utils
 
 try:
     from telethon import TelegramClient
-    from telethon.tl.functions.channels import SearchPostsRequest
-    from telethon.tl.types import InputPeerEmpty
 except ImportError:
     TelegramClient = None
-    SearchPostsRequest = None
-    InputPeerEmpty = None
+
+
+def _query_terms(value: str) -> set[str]:
+    import re
+
+    stop_words = {
+        "a",
+        "an",
+        "and",
+        "as",
+        "at",
+        "by",
+        "for",
+        "from",
+        "in",
+        "is",
+        "of",
+        "on",
+        "or",
+        "the",
+        "to",
+        "with",
+    }
+    return {
+        term
+        for term in re.findall(r"[\w'-]{3,}", (value or "").lower(), flags=re.UNICODE)
+        if term not in stop_words
+    }
+
+
+def _message_matches_query(message, query: str) -> bool:
+    terms = _query_terms(query)
+    if not terms:
+        return True
+    message_terms = _query_terms(getattr(message, "message", "") or "")
+    if not message_terms:
+        return False
+    required = 1 if len(terms) <= 3 else 2
+    return len(terms.intersection(message_terms)) >= required
 
 
 def _list_config(key: str) -> list[str]:
@@ -154,6 +189,8 @@ class TelethonProvider:
         channels = _list_config("telegram_user_channels")
         global_search = bool(config.app.get("telegram_global_search", False))
         limit = min(max(query.limit, 1), 50)
+        recent_scan_limit = int(config.app.get("telegram_recent_scan_limit", 40))
+        dialog_limit = int(config.app.get("telegram_global_search_dialog_limit", 25))
         stories = []
 
         async with TelegramClient(session_file, api_id, api_hash) as client:
@@ -175,26 +212,25 @@ class TelethonProvider:
                     if len(stories) >= limit:
                         return stories
 
-            if global_search and query.query and SearchPostsRequest and InputPeerEmpty:
-                result = await client(
-                    SearchPostsRequest(
-                        query=query.query,
-                        offset_rate=0,
-                        offset_peer=InputPeerEmpty(),
-                        offset_id=0,
-                        limit=limit,
-                    )
+            if global_search and query.query:
+                logger.info(
+                    "Telethon global SearchPostsRequest requires Telegram Premium; "
+                    "scanning accessible dialogs instead"
                 )
-                chats_by_id = {getattr(chat, "id", None): chat for chat in result.chats}
-                for message in result.messages:
-                    peer_id = getattr(message, "peer_id", None)
-                    channel_id = getattr(peer_id, "channel_id", None)
-                    chat = chats_by_id.get(channel_id)
-                    story = _story_from_message(message, chat)
-                    if story:
-                        await _attach_downloaded_video(client, message, story, chat)
-                        stories.append(story)
-                    if len(stories) >= limit:
-                        break
+                async for dialog in client.iter_dialogs(limit=dialog_limit):
+                    entity = getattr(dialog, "entity", None)
+                    if not entity:
+                        continue
+                    async for message in client.iter_messages(
+                        entity, limit=recent_scan_limit
+                    ):
+                        if not _message_matches_query(message, query.query):
+                            continue
+                        story = _story_from_message(message, entity)
+                        if story:
+                            await _attach_downloaded_video(client, message, story, entity)
+                            stories.append(story)
+                        if len(stories) >= limit:
+                            return stories
 
         return stories

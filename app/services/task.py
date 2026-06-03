@@ -565,6 +565,19 @@ def _social_publish_preflight(params: VideoParams) -> tuple[dict, PublishPrivacy
     return summary, privacy
 
 
+def _prepare_news_concat_mode(task_id: str, params: VideoParams, material_count: int) -> None:
+    if type(params.video_concat_mode) is str:
+        params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
+    if params.video_source == "news" and config.app.get("news_preserve_media_order", True):
+        params.video_concat_mode = VideoConcatMode.sequential
+        news_diagnostics.record_event(
+            task_id,
+            "news_media_order_preserved",
+            reason="news_source_media_before_stock",
+            material_count=material_count,
+        )
+
+
 def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
@@ -671,8 +684,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
 
     # 仅完整视频生成流程才需要处理视频拼接模式；
     # 这样可以避免 /subtitle 和 /audio 这类请求访问不存在的字段。
-    if type(params.video_concat_mode) is str:
-        params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
+    _prepare_news_concat_mode(task_id, params, len(downloaded_videos))
 
     # 6. Generate final videos
     final_video_paths, combined_video_paths = generate_final_videos(

@@ -380,3 +380,23 @@ Successful YouTube uploads now include `upload_body`, `normalized_metadata`, and
 - [x] **Step 3: Add a no-upload preview endpoint**
 
 `GET /api/v1/tasks/{task_id}/youtube/preview` returns the upload body and metadata quality for the first generated video without calling the YouTube API.
+
+## Task 17: Stabilize Serious News Background Music
+
+**Files:**
+- Modify: `app/services/video.py`
+- Modify: `config.example.toml`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/services/test_video_branding.py`
+
+- [x] **Step 1: Add deterministic serious BGM selection**
+
+`news_serious` BGM now selects from the configured serious-track list using story context instead of an untracked random choice.
+
+- [x] **Step 2: Log selected music evidence**
+
+Video rendering logs the selected BGM file, selection strategy, and candidate count.
+
+- [x] **Step 3: Cover deterministic behavior with tests**
+
+Unit tests verify the deterministic strategy stays stable for the same story and does not call `random.choice`.

@@ -108,6 +108,8 @@ This makes a non-uploading run visible in the API/Streamlit result instead of on
 
 Every rendered video can receive a `DOLIDE News` intro overlay during the first seconds and a persistent watermark.
 
+News videos also use the `news_serious` background music profile by default. The profile reads `news_serious_bgm_files` from config and, unless `news_serious_bgm_strategy = "random"` is set, picks a stable serious track from the story title/source context. Render logs include the selected file, strategy, and candidate count so the music choice is auditable.
+
 Intro overlay config:
 
 - `brand_intro_enabled`;

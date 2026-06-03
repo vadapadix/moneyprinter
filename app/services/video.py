@@ -1,4 +1,5 @@
 import glob
+import hashlib
 import itertools
 import io
 import os
@@ -7,7 +8,7 @@ import gc
 import shutil
 import subprocess
 from contextlib import redirect_stdout
-from typing import List
+from typing import Any, Dict, List, Optional
 from loguru import logger
 from moviepy import (
     AudioFileClip,
@@ -412,9 +413,39 @@ def _resolve_bgm_file_path(song_dir: str, bgm_file: str) -> str:
             raise ValueError(str(root_dir_exc)) from song_dir_exc
 
 
-def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
-    if not bgm_type:
+def _normalize_bgm_file_list(files) -> List[str]:
+    if isinstance(files, str):
+        return [item.strip() for item in files.split(",") if item.strip()]
+    return [str(item).strip() for item in files or [] if str(item).strip()]
+
+
+def _deterministic_bgm_choice(
+    candidates: List[str], context: Optional[Dict[str, Any]] = None
+) -> str:
+    if not candidates:
         return ""
+
+    key_parts = []
+    if context:
+        for name in ("title", "video_subject", "url", "provider"):
+            value = str(context.get(name) or "").strip()
+            if value:
+                key_parts.append(value)
+
+    if not key_parts:
+        key_parts = [os.path.basename(item) for item in candidates]
+
+    digest = hashlib.sha256("|".join(key_parts).encode("utf-8")).hexdigest()
+    return sorted(candidates)[int(digest[:8], 16) % len(candidates)]
+
+
+def get_bgm_selection(
+    bgm_type: str = "random",
+    bgm_file: str = "",
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    if not bgm_type:
+        return {"file": "", "strategy": "disabled", "candidate_count": 0}
 
     if bgm_file:
         song_dir = utils.song_dir()
@@ -427,13 +458,17 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
             logger.warning(
                 f"reject unsafe bgm file: {bgm_file}, song_dir: {song_dir}, error: {str(exc)}"
             )
-            return ""
+            return {"file": "", "strategy": "explicit_rejected", "candidate_count": 0}
 
         if not resolved_bgm_file.lower().endswith(_BGM_EXTENSIONS):
             logger.warning(f"reject unsupported bgm file extension: {resolved_bgm_file}")
-            return ""
+            return {
+                "file": "",
+                "strategy": "explicit_unsupported",
+                "candidate_count": 0,
+            }
 
-        return resolved_bgm_file
+        return {"file": resolved_bgm_file, "strategy": "explicit", "candidate_count": 1}
 
     if bgm_type in ("news_serious", "serious"):
         song_dir = utils.song_dir()
@@ -447,12 +482,8 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
                 "output023.mp3",
             ],
         )
-        if isinstance(configured_files, str):
-            configured_files = [
-                item.strip() for item in configured_files.split(",") if item.strip()
-            ]
         candidates = []
-        for configured_file in configured_files or []:
+        for configured_file in _normalize_bgm_file_list(configured_files):
             try:
                 resolved_file = _resolve_bgm_file_path(song_dir, str(configured_file))
             except ValueError as exc:
@@ -466,7 +497,20 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
                 candidates.append(resolved_file)
 
         if candidates:
-            return random.choice(candidates)
+            strategy = str(
+                config.app.get("news_serious_bgm_strategy", "deterministic")
+                or "deterministic"
+            ).lower()
+            selected_file = (
+                random.choice(candidates)
+                if strategy == "random"
+                else _deterministic_bgm_choice(candidates, context=context)
+            )
+            return {
+                "file": selected_file,
+                "strategy": f"news_serious_{strategy}",
+                "candidate_count": len(candidates),
+            }
         logger.warning("no configured serious news bgm files found, falling back to random")
 
     if bgm_type in ("random", "news_serious", "serious"):
@@ -476,10 +520,24 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
         # 当背景音乐目录为空时，直接回退为“不使用 BGM”，避免 random.choice([]) 抛异常。
         if not files:
             logger.warning(f"no bgm files found in song directory: {song_dir}")
-            return ""
-        return random.choice(files)
+            return {"file": "", "strategy": "fallback_empty", "candidate_count": 0}
+        return {
+            "file": random.choice(files),
+            "strategy": "fallback_random",
+            "candidate_count": len(files),
+        }
 
-    return ""
+    return {"file": "", "strategy": "unsupported_type", "candidate_count": 0}
+
+
+def get_bgm_file(
+    bgm_type: str = "random",
+    bgm_file: str = "",
+    context: Optional[Dict[str, Any]] = None,
+):
+    return get_bgm_selection(bgm_type=bgm_type, bgm_file=bgm_file, context=context).get(
+        "file", ""
+    )
 
 
 def combine_videos(
@@ -862,8 +920,22 @@ def generate_video(
     except Exception as e:
         logger.warning(f"failed to add brand watermark: {str(e)}")
 
-    bgm_file = get_bgm_file(bgm_type=params.bgm_type, bgm_file=params.bgm_file)
+    bgm_context = {
+        "video_subject": getattr(params, "video_subject", ""),
+        **(getattr(params, "news_source_context", None) or {}),
+    }
+    bgm_selection = get_bgm_selection(
+        bgm_type=params.bgm_type,
+        bgm_file=params.bgm_file,
+        context=bgm_context,
+    )
+    bgm_file = bgm_selection.get("file", "")
     if bgm_file:
+        logger.info(
+            "selected bgm: "
+            f"{os.path.basename(bgm_file)}, strategy={bgm_selection.get('strategy')}, "
+            f"candidates={bgm_selection.get('candidate_count')}"
+        )
         try:
             bgm_clip = AudioFileClip(bgm_file).with_effects(
                 [

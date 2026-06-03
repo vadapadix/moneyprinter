@@ -347,6 +347,7 @@ news_script_paragraphs = 3
 news_voice_rate = 1.42
 news_bgm_type = "news_serious"
 news_bgm_volume = 0.08
+news_serious_bgm_strategy = "deterministic" # "deterministic" keeps the same story on the same serious track; "random" rotates tracks
 news_serious_bgm_files = ["output004.mp3", "output011.mp3", "output015.mp3", "output019.mp3", "output023.mp3"]
 news_web_media_enabled = true
 news_web_search_enabled = true

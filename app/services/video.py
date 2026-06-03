@@ -427,7 +427,41 @@ def get_bgm_file(bgm_type: str = "random", bgm_file: str = ""):
 
         return resolved_bgm_file
 
-    if bgm_type == "random":
+    if bgm_type in ("news_serious", "serious"):
+        song_dir = utils.song_dir()
+        configured_files = config.app.get(
+            "news_serious_bgm_files",
+            [
+                "output004.mp3",
+                "output011.mp3",
+                "output015.mp3",
+                "output019.mp3",
+                "output023.mp3",
+            ],
+        )
+        if isinstance(configured_files, str):
+            configured_files = [
+                item.strip() for item in configured_files.split(",") if item.strip()
+            ]
+        candidates = []
+        for configured_file in configured_files or []:
+            try:
+                resolved_file = _resolve_bgm_file_path(song_dir, str(configured_file))
+            except ValueError as exc:
+                logger.warning(
+                    f"reject unsafe serious bgm file: {configured_file}, error: {str(exc)}"
+                )
+                continue
+            if os.path.isfile(resolved_file) and resolved_file.lower().endswith(
+                _BGM_EXTENSIONS
+            ):
+                candidates.append(resolved_file)
+
+        if candidates:
+            return random.choice(candidates)
+        logger.warning("no configured serious news bgm files found, falling back to random")
+
+    if bgm_type in ("random", "news_serious", "serious"):
         suffix = "*.mp3"
         song_dir = utils.song_dir()
         files = glob.glob(os.path.join(song_dir, suffix))

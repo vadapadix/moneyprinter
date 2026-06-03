@@ -95,6 +95,14 @@ def _configured_voice_name() -> str:
     )
 
 
+def _news_bgm_type() -> str:
+    return str(config.app.get("news_bgm_type", "news_serious") or "news_serious")
+
+
+def _news_bgm_volume() -> float:
+    return float(config.app.get("news_bgm_volume", 0.08))
+
+
 def build_video_params_from_news(
     request: NewsAutomationRunRequest, story: NewsStory
 ) -> VideoParams:
@@ -133,7 +141,8 @@ def build_video_params_from_news(
         voice_rate=float(
             config.app.get("news_voice_rate", 1.32)
         ),
-        bgm_type=config.ui.get("bgm_type", config.app.get("bgm_type", "random")),
+        bgm_type=_news_bgm_type(),
+        bgm_volume=_news_bgm_volume(),
         font_name=config.ui.get("font_name", config.app.get("font_name", "STHeitiMedium.ttc")),
         font_size=int(config.ui.get("font_size", config.app.get("font_size", 60))),
         subtitle_position=config.ui.get("subtitle_position", config.app.get("subtitle_position", "bottom")),

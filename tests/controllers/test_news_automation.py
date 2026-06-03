@@ -98,6 +98,8 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(params.video_language, "en")
         self.assertEqual(params.voice_name, "en-US-BrianNeural-Male")
         self.assertEqual(params.voice_rate, 1.32)
+        self.assertEqual(params.bgm_type, "news_serious")
+        self.assertEqual(params.bgm_volume, 0.08)
         self.assertEqual(params.video_script, "")
         self.assertIn("Write a short factual news voiceover in English", params.video_subject)
         self.assertIn("Українська новина", params.video_subject)

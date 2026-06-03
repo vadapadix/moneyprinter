@@ -3,7 +3,6 @@ import sys
 import webbrowser
 from uuid import UUID, uuid4
 
-import requests
 import streamlit as st
 from loguru import logger
 
@@ -34,6 +33,7 @@ from app.services import llm, voice
 from app.services import task as tm
 from app.services import youtube_oauth
 from app.services.publishers.tiktok import TikTokPublisher
+from app.services.publishers.youtube import YouTubeShortsPublisher
 from app.utils import utils
 
 # Helper functions for test upload
@@ -55,6 +55,89 @@ def get_social_privacy_setting() -> PublishPrivacy:
         return PublishPrivacy(config.app.get("social_privacy", "private"))
     except ValueError:
         return PublishPrivacy.private
+
+
+def run_test_upload_inline(uploaded_file, platform: str) -> dict:
+    """Run upload tests directly from Streamlit without requiring FastAPI."""
+    request_id = utils.get_uuid()
+    temp_dir = utils.storage_dir("temp", create=True)
+    safe_name = os.path.basename(uploaded_file.name or "upload-test.mp4")
+    temp_file_path = os.path.join(temp_dir, f"test_upload_{request_id}_{safe_name}")
+    metadata = SocialMetadata(
+        title="DOLIDE News private upload test",
+        description="Private upload test for DOLIDE News automation. #Shorts",
+        hashtags=["#Shorts", "#DOLIDENews", "#test"],
+        youtube_tags=["DOLIDE News", "Shorts", "test upload"],
+        platform_captions={
+            "tiktok": "Private DOLIDE News upload test #DOLIDENews #test",
+            "youtube": "Private upload test for DOLIDE News automation. #Shorts",
+        },
+        contains_synthetic_media=True,
+    )
+    results = {}
+    try:
+        with open(temp_file_path, "wb") as handle:
+            handle.write(uploaded_file.getbuffer())
+
+        if platform in ("tiktok", "both"):
+            tiktok_result = TikTokPublisher().publish(
+                video_path=temp_file_path,
+                metadata=metadata,
+                privacy=PublishPrivacy.private,
+            )
+            results["tiktok"] = tiktok_result.to_dict()
+
+        if platform in ("youtube", "both"):
+            youtube_result = YouTubeShortsPublisher().publish(
+                video_path=temp_file_path,
+                metadata=metadata,
+                privacy=PublishPrivacy.private,
+            )
+            results["youtube"] = youtube_result.to_dict()
+    finally:
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+    return {
+        "request_id": request_id,
+        "platforms_tested": platform if platform != "both" else ["tiktok", "youtube"],
+        "results": results,
+    }
+
+
+class _InlineUploadResponse:
+    def __init__(self, status_code: int, data: dict | None = None, error: str = ""):
+        self.status_code = status_code
+        self._data = data or {}
+        self.text = error or utils.to_json(self._data)
+
+    def json(self):
+        return {"status": self.status_code, "data": self._data}
+
+
+class _InlineUploadRequests:
+    @staticmethod
+    def post(url: str, files=None, **kwargs):
+        if "/api/v1/test-upload" not in str(url):
+            return _InlineUploadResponse(404, error=f"Unsupported inline request: {url}")
+        platform = "tiktok"
+        if "platform=youtube" in str(url):
+            platform = "youtube"
+        elif "platform=both" in str(url):
+            platform = "both"
+        uploaded_file = (files or {}).get("file")
+        if uploaded_file is None:
+            return _InlineUploadResponse(400, error="No upload file provided")
+        try:
+            return _InlineUploadResponse(
+                200,
+                data=run_test_upload_inline(uploaded_file, platform),
+            )
+        except Exception as exc:
+            return _InlineUploadResponse(500, error=str(exc))
+
+
+requests = _InlineUploadRequests()
 
 
 def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:

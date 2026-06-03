@@ -174,6 +174,53 @@ class NewsVideoSearchTest(unittest.TestCase):
         self.assertGreaterEqual(len(calls), 2)
         self.assertEqual(result.attempts[0]["skipped_irrelevant_count"], 1)
 
+    def test_search_report_requires_stronger_overlap_for_long_headline(self):
+        calls = []
+
+        class QualityGateYoutubeDL(FakeYoutubeDL):
+            def extract_info(self, target, download=True):
+                calls.append(target)
+                dirname = os.path.dirname(self.options["outtmpl"])
+                if len(calls) == 1:
+                    path = os.path.join(dirname, "weak.mp4")
+                    with open(path, "wb") as handle:
+                        handle.write(b"video")
+                    return {
+                        "entries": [
+                            {
+                                "title": "market reaction analysis",
+                                "requested_downloads": [{"filepath": path}],
+                            }
+                        ]
+                    }
+
+                path = os.path.join(dirname, "strong.mp4")
+                with open(path, "wb") as handle:
+                    handle.write(b"video")
+                return {
+                    "entries": [
+                        {
+                            "title": "central bank emergency rate decision market footage",
+                            "requested_downloads": [{"filepath": path}],
+                        }
+                    ]
+                }
+
+        fake_module = types.SimpleNamespace(YoutubeDL=QualityGateYoutubeDL)
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            result = news_video_search.search_and_download_report(
+                "central bank announces emergency rate decision market",
+                save_dir=temp_dir,
+                limit=1,
+            )
+
+        self.assertTrue(result.paths[0].endswith("strong.mp4"))
+        self.assertEqual(result.attempts[0]["skipped_irrelevant_count"], 1)
+        self.assertEqual(result.attempts[0]["skipped_relevance"][0]["matched_terms"], ["market"])
+        self.assertEqual(result.attempts[0]["skipped_relevance"][0]["required_overlap"], 2)
+
     def test_search_report_tries_web_video_pages_when_enabled(self):
         calls = []
 

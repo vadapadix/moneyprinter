@@ -182,3 +182,23 @@ Result: PASS.
 
 Run: `D:\moneyprinter\lib\python\python.exe -m unittest tests.services.test_social_metadata tests.services.test_news_history tests.services.test_news_story_quality tests.services.test_news_providers tests.controllers.test_news_automation tests.services.test_news_video_search tests.services.test_web_media tests.services.test_news_pipeline tests.services.test_task_news_history tests.services.test_news_diagnostics tests.services.test_video_branding tests.services.test_youtube_publisher -v`
 Result: PASS, 41 tests.
+
+## Task 8: Tighten Deep Video Relevance
+
+**Files:**
+- Modify: `app/services/news_video_search.py`
+- Modify: `config.example.toml`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/services/test_news_video_search.py`
+
+- [x] **Step 1: Require stronger keyword overlap for long headlines**
+
+The `yt-dlp` relevance gate now computes query terms, entry terms, matched terms, and keyword coverage. Long headlines require at least `news_ytdlp_min_keyword_overlap` matching terms or enough coverage before a downloaded entry is accepted.
+
+- [x] **Step 2: Record skipped relevance details**
+
+Each `attempt` now includes `skipped_relevance` with the skipped title, matched terms, coverage, and required overlap. This makes diagnostics useful when the app falls back to stock clips.
+
+- [x] **Step 3: Document production knobs**
+
+Added `news_ytdlp_min_keyword_overlap` and `news_ytdlp_min_keyword_coverage` to the example config and documented the relevance gate in `docs/NEWS_AUTOMATION_FEATURES.md`.

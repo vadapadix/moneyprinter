@@ -62,19 +62,62 @@ def _entry_title(entry: dict) -> str:
     ).strip()
 
 
-def _is_relevant_entry(entry: dict, query: str) -> bool:
+def _min_keyword_overlap(query_terms: set[str]) -> int:
+    configured = config.app.get("news_ytdlp_min_keyword_overlap", None)
+    if configured is not None:
+        try:
+            return max(1, int(configured))
+        except (TypeError, ValueError):
+            pass
+    return 1 if len(query_terms) <= 3 else 2
+
+
+def _min_keyword_coverage() -> float:
+    try:
+        return max(0.0, float(config.app.get("news_ytdlp_min_keyword_coverage", 0.25)))
+    except (TypeError, ValueError):
+        return 0.25
+
+
+def _entry_relevance(entry: dict, query: str) -> dict:
     query_terms = _keywords(query)
     if not query_terms:
-        return True
+        return {
+            "is_relevant": True,
+            "query_terms": [],
+            "entry_terms": [],
+            "matched_terms": [],
+            "coverage": 1.0,
+            "required_overlap": 0,
+        }
 
     entry_terms = _keywords(_entry_title(entry))
     if not entry_terms:
-        return True
+        return {
+            "is_relevant": True,
+            "query_terms": sorted(query_terms),
+            "entry_terms": [],
+            "matched_terms": [],
+            "coverage": 0.0,
+            "required_overlap": _min_keyword_overlap(query_terms),
+        }
 
     overlap = query_terms.intersection(entry_terms)
-    if len(overlap) >= 2:
-        return True
-    return len(overlap) >= 1 and len(query_terms) <= 3
+    coverage = len(overlap) / len(query_terms)
+    required_overlap = _min_keyword_overlap(query_terms)
+    is_relevant = len(overlap) >= required_overlap or coverage >= _min_keyword_coverage()
+    return {
+        "is_relevant": is_relevant,
+        "query_terms": sorted(query_terms),
+        "entry_terms": sorted(entry_terms),
+        "matched_terms": sorted(overlap),
+        "coverage": round(coverage, 3),
+        "required_overlap": required_overlap,
+    }
+
+
+def _is_relevant_entry(entry: dict, query: str) -> bool:
+    return bool(_entry_relevance(entry, query)["is_relevant"])
 
 
 def _english_news_query(query: str) -> str:
@@ -206,13 +249,23 @@ def search_and_download_report(
                     "target": target,
                     "downloaded_count": 0,
                     "skipped_irrelevant_count": 0,
+                    "skipped_relevance": [],
                     "error": "",
                 }
                 try:
                     info = ydl.extract_info(target, download=True)
                     for entry in _iter_entries(info):
-                        if not _is_relevant_entry(entry, query):
+                        relevance = _entry_relevance(entry, query)
+                        if not relevance["is_relevant"]:
                             attempt["skipped_irrelevant_count"] += 1
+                            attempt["skipped_relevance"].append(
+                                {
+                                    "title": str(entry.get("title") or "")[:160],
+                                    "matched_terms": relevance["matched_terms"],
+                                    "coverage": relevance["coverage"],
+                                    "required_overlap": relevance["required_overlap"],
+                                }
+                            )
                             continue
                         path = _downloaded_path(ydl, entry)
                         if path and os.path.isfile(path) and path not in downloaded:

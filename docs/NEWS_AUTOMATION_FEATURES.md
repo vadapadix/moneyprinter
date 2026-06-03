@@ -11,11 +11,11 @@ The default source is `auto`. In this mode the app searches every provider liste
 - `guardian`: Guardian Open Platform.
 - `telegram`: Telegram Bot API channels that the bot can read.
 
-Provider results are normalized to `NewsStory` objects with title, summary, source URL, publication date, keywords, and media assets. Duplicate URLs are removed before the automation queue is built.
+Provider results are normalized to `NewsStory` objects with title, summary, source URL, publication date, keywords, and media assets. Auto mode gathers candidates from every configured provider before ranking, and duplicate URLs are removed before the automation queue is built.
 
 ## 2. Unique Story Memory
 
-Every queued story is reserved in `storage/news/history.json`. The key is the source URL when available, otherwise a provider/title/date hash. This prevents repeated articles between runs.
+Every queued story is reserved in `storage/news/history.json`. The primary key is the source URL when available, otherwise a provider/title/date hash. For sufficiently specific headlines, the ledger also stores a title signature, so the same article can be skipped even when it appears at a different URL.
 
 When the first fetched batch is mostly old/reserved stories, the automation increases the provider fetch limit in waves until it finds the requested number of unique articles or reaches `news_unique_selection_max_fetch_multiplier`. Each queued task receives the selection attempt summary in diagnostics, so a user can see whether the run stopped because the providers had no new stories or because the limit was reached.
 
@@ -43,7 +43,7 @@ Weak headlines, missing summaries, and missing source URLs are penalized. This k
 
 News videos force English output through `news_output_language = "en"` unless a run explicitly overrides it. The source can be Ukrainian, English, Telegram, Guardian, or NewsData, but the generated voiceover prompt asks for a factual English newsreader script grounded only in the source material.
 
-The prompt asks for 90-130 spoken words and avoids invented details, filler, broad lessons, and generic intros.
+The prompt asks for 160-220 spoken words when the source has enough facts and avoids invented details, filler, broad lessons, and generic intros. Thin source material stays shorter instead of being padded.
 
 ## 5. Media Discovery Order
 
@@ -57,7 +57,7 @@ The media pipeline tries sources in this order:
 
 The target clip count is controlled by `news_min_clips`.
 
-The `yt-dlp` stage records every attempted target in diagnostics, including downloaded counts, skipped weakly relevant entries, and target errors. This makes it easier to tell whether a task used real source media, YouTube/news footage, or stock fallback.
+The `yt-dlp` stage records every attempted target in diagnostics, including downloaded counts, skipped weakly relevant entries, matched terms, keyword coverage, and target errors. The relevance gate is controlled by `news_ytdlp_min_keyword_overlap` and `news_ytdlp_min_keyword_coverage`; this makes it harder for a random popular video with only one weak word match to enter the final edit.
 
 ## 6. Social Metadata
 

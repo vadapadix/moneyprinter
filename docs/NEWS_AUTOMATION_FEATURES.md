@@ -93,6 +93,8 @@ Upload tests use the same configured publisher selector as real task publishing.
 
 The upload-test implementation is shared by Streamlit inline actions and the FastAPI endpoint, so a UI button click and an API request now run through the same publisher path and validation.
 
+Streamlit test-upload buttons now keep the last action result in `st.session_state`, render a spinner while the test is running, and show the resulting JSON or error after reruns. This makes TikTok/YouTube test clicks visibly confirm what happened instead of appearing inert during long upload checks.
+
 `GET /api/v1/tasks/{task_id}/youtube/preview` returns the exact YouTube upload body that would be sent for the first generated video without uploading anything. The preview includes `metadata_quality`, which reports whether the title came from the generated metadata or from a normalized fallback, the tag count, description length, Shorts marker presence, synthetic-media flag, and privacy status. Real YouTube upload results include the same `upload_body`, `normalized_metadata`, and `metadata_quality` in `raw`.
 
 Every completed task includes `publish_preflight`, which explains whether publishing was requested and which platforms were enabled or skipped before upload. Common skip reasons are:

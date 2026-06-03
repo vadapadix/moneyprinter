@@ -422,3 +422,21 @@ TikTok, YouTube, and both-platform test uploads now run through one service that
 - [x] **Step 3: Validate unsupported platforms before upload**
 
 Unknown test-upload platforms return a validation error before any publisher is called.
+
+## Task 19: Make Upload Button Clicks Visible in Streamlit
+
+**Files:**
+- Modify: `webui/Main.py`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+
+- [x] **Step 1: Add persistent action results**
+
+Streamlit upload-test actions store their latest status and response JSON in `st.session_state`.
+
+- [x] **Step 2: Add visible running and completion states**
+
+TikTok, YouTube, and both-platform test buttons now show a spinner while running and a success/error message with response JSON after rerun.
+
+- [x] **Step 3: Verify with upload-focused tests**
+
+Compile and upload/TikTok regression tests were run together after the UI action path changed.

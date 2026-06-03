@@ -114,6 +114,63 @@ class _InlineUploadRequests:
 requests = _InlineUploadRequests()
 
 
+def _store_action_result(key: str, level: str, message: str, data: dict | None = None):
+    st.session_state[f"{key}_result"] = {
+        "level": level,
+        "message": message,
+        "data": data or {},
+    }
+
+
+def _render_action_result(key: str):
+    result = st.session_state.get(f"{key}_result")
+    if not result:
+        return
+
+    level = result.get("level", "info")
+    message = result.get("message", "")
+    if level == "success":
+        st.success(message)
+    elif level == "warning":
+        st.warning(message)
+    elif level == "error":
+        st.error(message)
+    else:
+        st.info(message)
+
+    data = result.get("data") or {}
+    if data:
+        st.json(data)
+
+
+def render_test_upload_action(uploaded_file, platform: str, label: str, key: str):
+    if uploaded_file is None:
+        _render_action_result(key)
+        return
+
+    if st.button(label, key=key):
+        try:
+            with st.spinner(f"Running {label}..."):
+                response = requests.post(
+                    f"{get_base_url()}/api/v1/test-upload?platform={platform}",
+                    files={"file": uploaded_file},
+                )
+
+            if response.status_code == 200:
+                payload = response.json().get("data", {})
+                _store_action_result(key, "success", f"{label} completed.", payload)
+            else:
+                _store_action_result(
+                    key,
+                    "error",
+                    f"{label} failed: {response.text}",
+                )
+        except Exception as exc:
+            _store_action_result(key, "error", f"{label} failed: {str(exc)}")
+
+    _render_action_result(key)
+
+
 def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
     """Run news automation from Streamlit without requiring the FastAPI server."""
     prepared = automation_service.prepare_news_run(request)
@@ -247,7 +304,13 @@ with test_upload_cols[0]:
         type=["mp4"],
         key="tiktok_test_file"
     )
-    if tiktok_test_file is not None:
+    render_test_upload_action(
+        tiktok_test_file,
+        platform="tiktok",
+        label="Test TikTok Upload",
+        key="test_tiktok_upload",
+    )
+    if False and tiktok_test_file is not None:
         if st.button("Test TikTok Upload", key="test_tiktok_upload"):
             try:
                 # Upload file to test endpoint
@@ -279,7 +342,13 @@ with test_upload_cols[1]:
         type=["mp4"],
         key="youtube_test_file"
     )
-    if youtube_test_file is not None:
+    render_test_upload_action(
+        youtube_test_file,
+        platform="youtube",
+        label="Test YouTube Upload",
+        key="test_youtube_upload",
+    )
+    if False and youtube_test_file is not None:
         if st.button("Test YouTube Upload", key="test_youtube_upload"):
             try:
                 # Upload file to test endpoint
@@ -312,7 +381,13 @@ with test_upload_cols[0]:
         type=["mp4"],
         key="both_test_file"
     )
-    if both_test_file is not None:
+    render_test_upload_action(
+        both_test_file,
+        platform="both",
+        label="Test Both Platforms",
+        key="test_both_upload",
+    )
+    if False and both_test_file is not None:
         if st.button("Test Both Platforms", key="test_both_upload"):
             try:
                 # Upload file to test endpoint

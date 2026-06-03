@@ -154,6 +154,7 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
         with st.spinner(f"Generating news video: {story.title}"):
             result = tm.start(task_id=task_id, params=task_params)
         publish_results = result.get("publish_results") if result else []
+        publish_preflight = result.get("publish_preflight") if result else None
         videos = result.get("videos", []) if result else []
         media_summary = (
             result.get("news_media_summary") if result else None
@@ -171,6 +172,7 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
                 "story": story.model_dump(),
                 "success": bool(videos),
                 "videos": videos,
+                "publish_preflight": publish_preflight,
                 "publish_results": publish_results or [],
                 "news_media_summary": media_summary,
                 "diagnostics": news_diagnostics.get_task_diagnostics(task_id),

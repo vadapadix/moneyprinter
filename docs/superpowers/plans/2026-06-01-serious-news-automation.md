@@ -268,3 +268,27 @@ Streamlit inline news automation payloads and `/api/v1/automation/tasks/{task_id
 - [x] **Step 3: Include analytics in Streamlit inline runs**
 
 Streamlit news automation responses now include an `analytics` object above the detailed per-task results.
+
+## Task 12: Explain Publishing Readiness
+
+**Files:**
+- Modify: `app/services/task.py`
+- Modify: `app/services/news_analytics.py`
+- Modify: `app/controllers/v1/automation.py`
+- Modify: `webui/Main.py`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/services/test_task_news_history.py`
+- Test: `tests/services/test_news_analytics.py`
+- Test: `tests/controllers/test_news_automation.py`
+
+- [x] **Step 1: Add publishing preflight**
+
+`_social_publish_preflight()` now reports whether auto-publish is enabled, requested platforms, enabled platforms, skipped platforms, privacy, and skip reasons such as `youtube_not_connected` or `tiktok_direct_post_consent_missing`.
+
+- [x] **Step 2: Persist and expose preflight**
+
+Tasks record `social_publish_preflight` diagnostics and include `publish_preflight` in task results, Streamlit inline output, and `/api/v1/tasks/{task_id}/publish`.
+
+- [x] **Step 3: Count blocked publishing**
+
+Local analytics now counts tasks blocked before upload and groups them by preflight skip reason.

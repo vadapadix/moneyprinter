@@ -79,6 +79,16 @@ When `social_auto_publish` or the news run request enables publishing, the task 
 
 YouTube uses the official YouTube upload path. TikTok uses the configured TikTok Content Posting API path and still depends on TikTok review/scope constraints.
 
+Every completed task includes `publish_preflight`, which explains whether publishing was requested and which platforms were enabled or skipped before upload. Common skip reasons are:
+
+- `auto_publish_disabled`;
+- `youtube_not_connected`;
+- `tiktok_upload_disabled`;
+- `tiktok_direct_post_consent_missing`;
+- `no_enabled_platforms`.
+
+This makes a non-uploading run visible in the API/Streamlit result instead of only in terminal logs.
+
 ## 8. Branding
 
 Every rendered video can receive a `DOLIDE News` intro overlay during the first seconds and a persistent watermark.
@@ -139,6 +149,7 @@ The analytics summary is local operational telemetry. It does not send data to a
 - generated task and video counts;
 - generation success/failure rate;
 - upload attempts, successful uploads, and failed uploads;
+- tasks blocked before upload and their preflight skip reasons;
 - per-platform upload success/failure counts;
 - non-stock video count;
 - stock fallback and stock-only task counts;

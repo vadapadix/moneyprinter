@@ -506,6 +506,65 @@ def _fail_news_task(task_id: str, params: VideoParams, reason: str) -> None:
     news_diagnostics.record_event(task_id, "news_task_failed", reason=reason)
 
 
+def _social_publish_preflight(params: VideoParams) -> tuple[dict, PublishPrivacy]:
+    auto_publish = (
+        params.social_auto_publish
+        if params.social_auto_publish is not None
+        else config.app.get("social_auto_publish", False)
+    )
+    requested_platforms = (
+        platform_values(params.social_platforms)
+        if params.social_platforms
+        else [str(platform).lower() for platform in config.app.get("social_platforms", [])]
+    )
+    try:
+        privacy = params.social_privacy or PublishPrivacy(
+            config.app.get("social_privacy", "private")
+        )
+    except ValueError:
+        logger.warning("invalid social_privacy config, falling back to private")
+        privacy = PublishPrivacy.private
+
+    summary = {
+        "auto_publish": bool(auto_publish),
+        "requested_platforms": requested_platforms,
+        "enabled_platforms": [],
+        "skipped_platforms": [],
+        "privacy": privacy.value,
+    }
+    if not auto_publish:
+        summary["skip_reason"] = "auto_publish_disabled"
+        return summary, privacy
+    if not requested_platforms:
+        summary["skip_reason"] = "no_requested_platforms"
+        return summary, privacy
+
+    for platform in requested_platforms:
+        if platform == "youtube" and not youtube_oauth.is_configured():
+            summary["skipped_platforms"].append(
+                {"platform": platform, "reason": "youtube_not_connected"}
+            )
+            continue
+        if platform == "tiktok" and not config.app.get("tiktok_upload_enabled", False):
+            summary["skipped_platforms"].append(
+                {"platform": platform, "reason": "tiktok_upload_disabled"}
+            )
+            continue
+        if platform == "tiktok" and not params.tiktok_direct_post_consent:
+            summary["skipped_platforms"].append(
+                {
+                    "platform": platform,
+                    "reason": "tiktok_direct_post_consent_missing",
+                }
+            )
+            continue
+        summary["enabled_platforms"].append(platform)
+
+    if not summary["enabled_platforms"]:
+        summary["skip_reason"] = "no_enabled_platforms"
+    return summary, privacy
+
+
 def start(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
@@ -661,48 +720,31 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         has_tiktok_caption=bool(generated_social_metadata.platform_captions.get("tiktok")),
     )
     publish_results = []
-    auto_publish = (
-        params.social_auto_publish
-        if params.social_auto_publish is not None
-        else config.app.get("social_auto_publish", False)
+    publish_preflight, privacy = _social_publish_preflight(params)
+    news_diagnostics.record_event(
+        task_id,
+        "social_publish_preflight",
+        **publish_preflight,
     )
-    if auto_publish:
-        logger.info("\n\n## publishing videos to configured social platforms")
-        try:
-            privacy = params.social_privacy or PublishPrivacy(
-                config.app.get("social_privacy", "private")
-            )
-        except ValueError:
-            logger.warning("invalid social_privacy config, falling back to private")
-            privacy = PublishPrivacy.private
-        platforms = (
-            platform_values(params.social_platforms)
-            if params.social_platforms
-            else [str(platform).lower() for platform in config.app.get("social_platforms", [])]
+    if not publish_preflight["auto_publish"]:
+        news_diagnostics.record_event(
+            task_id,
+            "social_publish_skipped",
+            reason="auto_publish_disabled",
+            requested_platforms=publish_preflight["requested_platforms"],
         )
-        if platforms:
-            enabled_platforms = []
-            for platform in platforms:
-                if platform == "youtube" and not youtube_oauth.is_configured():
-                    logger.info("Skipping YouTube auto-publish because it is not connected")
-                    continue
-                if platform == "tiktok" and not config.app.get("tiktok_upload_enabled", False):
-                    logger.info("Skipping TikTok auto-publish because it is not connected")
-                    continue
-                if platform == "tiktok" and not params.tiktok_direct_post_consent:
-                    logger.warning(
-                        "Skipping TikTok auto-publish because explicit Direct Post consent was not provided"
-                    )
-                    continue
-                enabled_platforms.append(platform)
-            platforms = enabled_platforms
-        if not platforms:
-            logger.warning("No enabled social platforms available for auto-publish")
-            news_diagnostics.record_event(
-                task_id,
-                "social_publish_skipped",
-                reason="no_enabled_platforms",
-            )
+    elif not publish_preflight["enabled_platforms"]:
+        logger.warning("No enabled social platforms available for auto-publish")
+        news_diagnostics.record_event(
+            task_id,
+            "social_publish_skipped",
+            reason=publish_preflight.get("skip_reason", "no_enabled_platforms"),
+            requested_platforms=publish_preflight["requested_platforms"],
+            skipped_platforms=publish_preflight["skipped_platforms"],
+        )
+    else:
+        logger.info("\n\n## publishing videos to configured social platforms")
+        platforms = publish_preflight["enabled_platforms"]
         for video_path in final_video_paths:
             for result in social_publisher.publish_video(
                 video_path=video_path,
@@ -722,7 +764,9 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         news_diagnostics.record_event(
             task_id,
             "social_publish_completed",
-            requested_platforms=platforms,
+            requested_platforms=publish_preflight["requested_platforms"],
+            enabled_platforms=platforms,
+            skipped_platforms=publish_preflight["skipped_platforms"],
             result_count=len(publish_results),
             success_count=len([item for item in publish_results if item.get("success")]),
             failed_count=len([item for item in publish_results if not item.get("success")]),
@@ -749,6 +793,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
         "news_media_summary": news_media_summary,
+        "publish_preflight": publish_preflight,
         "social_metadata": generated_social_metadata.model_dump(),
         "publish_results": publish_results if publish_results else None,
         "cross_post_results": publish_results if publish_results else None,

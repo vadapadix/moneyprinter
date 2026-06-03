@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from app.models.schema import MaterialInfo, NewsStory, VideoParams
+from app.models.schema import MaterialInfo, NewsStory, SocialPlatform, VideoParams
 from app.services import news_diagnostics, news_history, news_pipeline, task
 
 
@@ -128,6 +128,54 @@ class TaskNewsHistoryTest(unittest.TestCase):
                 "news_related_telegram_search_completed",
             ],
         )
+
+    def test_social_publish_preflight_reports_blocked_platforms(self):
+        params = VideoParams(
+            video_subject="News",
+            social_auto_publish=True,
+            social_platforms=[SocialPlatform.youtube, SocialPlatform.tiktok],
+            tiktok_direct_post_consent=False,
+        )
+
+        with mock.patch.object(
+            task.youtube_oauth,
+            "is_configured",
+            return_value=False,
+        ), mock.patch.dict(
+            "app.services.task.config.app",
+            {"tiktok_upload_enabled": True, "social_privacy": "private"},
+            clear=False,
+        ):
+            summary, privacy = task._social_publish_preflight(params)
+
+        self.assertEqual(privacy.value, "private")
+        self.assertTrue(summary["auto_publish"])
+        self.assertEqual(summary["requested_platforms"], ["youtube", "tiktok"])
+        self.assertEqual(summary["enabled_platforms"], [])
+        self.assertEqual(summary["skip_reason"], "no_enabled_platforms")
+        self.assertEqual(
+            summary["skipped_platforms"],
+            [
+                {"platform": "youtube", "reason": "youtube_not_connected"},
+                {
+                    "platform": "tiktok",
+                    "reason": "tiktok_direct_post_consent_missing",
+                },
+            ],
+        )
+
+    def test_social_publish_preflight_reports_disabled_auto_publish(self):
+        params = VideoParams(
+            video_subject="News",
+            social_auto_publish=False,
+            social_platforms=[SocialPlatform.youtube],
+        )
+
+        summary, _ = task._social_publish_preflight(params)
+
+        self.assertFalse(summary["auto_publish"])
+        self.assertEqual(summary["skip_reason"], "auto_publish_disabled")
+        self.assertEqual(summary["requested_platforms"], ["youtube"])
 
 
 if __name__ == "__main__":

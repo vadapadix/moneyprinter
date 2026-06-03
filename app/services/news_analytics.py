@@ -35,6 +35,11 @@ def _metadata(item: dict) -> dict:
     return metadata if isinstance(metadata, dict) else {}
 
 
+def _publish_preflight(item: dict) -> dict:
+    preflight = item.get("publish_preflight") or {}
+    return preflight if isinstance(preflight, dict) else {}
+
+
 def _platform_metrics(results: list[dict]) -> dict:
     platforms: dict[str, dict] = {}
     for result in results:
@@ -89,6 +94,15 @@ def summarize_news_items(items: list[dict]) -> dict:
             if str(_metadata(item).get("title") or "").strip().lower() in WEAK_TITLES
         ]
     )
+    blocked_preflights = [
+        _publish_preflight(item)
+        for item in items or []
+        if _publish_preflight(item).get("skip_reason")
+    ]
+    blocked_reasons: dict[str, int] = {}
+    for preflight in blocked_preflights:
+        reason = str(preflight.get("skip_reason") or "unknown")
+        blocked_reasons[reason] = blocked_reasons.get(reason, 0) + 1
     successful_upload_count = len(
         [result for result in publish_results if isinstance(result, dict) and result.get("success")]
     )
@@ -108,6 +122,8 @@ def summarize_news_items(items: list[dict]) -> dict:
         "publish_attempt_count": len(publish_results),
         "publish_success_count": successful_upload_count,
         "publish_failed_count": failed_upload_count,
+        "publish_blocked_task_count": len(blocked_preflights),
+        "publish_blocked_reasons": blocked_reasons,
         "platforms": _platform_metrics(publish_results),
         "non_stock_video_count": non_stock_video_count,
         "stock_fallback_task_count": stock_fallback_task_count,

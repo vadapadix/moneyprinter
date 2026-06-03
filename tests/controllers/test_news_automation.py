@@ -155,6 +155,10 @@ class NewsAutomationControllerTest(unittest.TestCase):
             "get_task",
             return_value={
                 "social_metadata": {"title": "Story title"},
+                "publish_preflight": {
+                    "auto_publish": True,
+                    "enabled_platforms": ["youtube"],
+                },
                 "publish_results": None,
                 "cross_post_results": None,
             },
@@ -175,6 +179,10 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(
             response["data"]["news_media_summary"],
             {"status": "news_media_ready", "total_video_count": 2},
+        )
+        self.assertEqual(
+            response["data"]["publish_preflight"],
+            {"auto_publish": True, "enabled_platforms": ["youtube"]},
         )
 
     def test_news_automation_analytics_endpoint_summarizes_state_tasks(self):

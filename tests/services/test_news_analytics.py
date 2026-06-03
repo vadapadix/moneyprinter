@@ -26,6 +26,12 @@ class NewsAnalyticsTest(unittest.TestCase):
                     "state": const.TASK_STATE_FAILED,
                     "videos": [],
                     "social_metadata": {"title": "unknown"},
+                    "publish_preflight": {
+                        "skip_reason": "no_enabled_platforms",
+                        "skipped_platforms": [
+                            {"platform": "youtube", "reason": "youtube_not_connected"}
+                        ],
+                    },
                     "news_media_summary": {
                         "status": "stock_fallback_only",
                         "non_stock_video_count": 0,
@@ -42,6 +48,8 @@ class NewsAnalyticsTest(unittest.TestCase):
         self.assertEqual(summary["publish_attempt_count"], 2)
         self.assertEqual(summary["publish_success_count"], 1)
         self.assertEqual(summary["publish_failed_count"], 1)
+        self.assertEqual(summary["publish_blocked_task_count"], 1)
+        self.assertEqual(summary["publish_blocked_reasons"], {"no_enabled_platforms": 1})
         self.assertEqual(summary["platforms"]["youtube"]["success"], 1)
         self.assertEqual(summary["platforms"]["tiktok"]["failed"], 1)
         self.assertEqual(summary["non_stock_video_count"], 2)

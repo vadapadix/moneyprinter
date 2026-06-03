@@ -27,6 +27,22 @@ def _normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip().lower())
 
 
+def _title_signature(value: str) -> str:
+    normalized = re.sub(r"[^0-9a-z]+", " ", _normalize_text(value)).strip()
+    if len(normalized) < 18:
+        return ""
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return f"title:{digest}"
+
+
+def _story_signatures(story: NewsStory) -> set[str]:
+    signatures = {story_key(story)}
+    title_signature = _title_signature(story.title)
+    if title_signature:
+        signatures.add(title_signature)
+    return signatures
+
+
 def story_key(story: NewsStory) -> str:
     if story.url:
         return f"url:{story.url.strip().lower()}"
@@ -69,9 +85,10 @@ def load_history() -> dict:
 
 
 def is_seen(story: NewsStory) -> bool:
-    key = story_key(story)
+    signatures = _story_signatures(story)
     with _LOCK:
-        return key in _load_unlocked().get("stories", {})
+        history = _load_unlocked().get("stories", {})
+        return any(signature in history for signature in signatures)
 
 
 def filter_new_stories(stories: Iterable[NewsStory], limit: int) -> list[NewsStory]:
@@ -80,10 +97,10 @@ def filter_new_stories(stories: Iterable[NewsStory], limit: int) -> list[NewsSto
     with _LOCK:
         history = _load_unlocked().get("stories", {})
         for story in stories:
-            key = story_key(story)
-            if key in history or key in seen_in_batch:
+            signatures = _story_signatures(story)
+            if signatures.intersection(history) or signatures.intersection(seen_in_batch):
                 continue
-            seen_in_batch.add(key)
+            seen_in_batch.update(signatures)
             selected.append(story)
             if len(selected) >= limit:
                 break
@@ -95,7 +112,7 @@ def reserve_story(story: NewsStory, run_id: str = "", task_id: str = "") -> str:
     with _LOCK:
         history = _load_unlocked()
         stories = history.setdefault("stories", {})
-        stories[key] = {
+        entry = {
             **stories.get(key, {}),
             "status": "reserved",
             "provider": story.provider,
@@ -105,6 +122,14 @@ def reserve_story(story: NewsStory, run_id: str = "", task_id: str = "") -> str:
             "task_id": task_id,
             "reserved_at": _now(),
         }
+        stories[key] = entry
+        title_signature = _title_signature(story.title)
+        if title_signature:
+            stories[title_signature] = {
+                **stories.get(title_signature, {}),
+                **entry,
+                "alias_for": key,
+            }
         _save_unlocked(history)
     return key
 
@@ -121,7 +146,7 @@ def mark_story_result(
         history = _load_unlocked()
         stories = history.setdefault("stories", {})
         current = stories.get(key, {})
-        stories[key] = {
+        entry = {
             **current,
             "status": "completed" if success else "failed",
             "provider": story.provider or current.get("provider", ""),
@@ -132,4 +157,12 @@ def mark_story_result(
             "video_count": len(videos or []),
             "publish_count": len(publish_results or []),
         }
+        stories[key] = entry
+        title_signature = _title_signature(story.title)
+        if title_signature:
+            stories[title_signature] = {
+                **stories.get(title_signature, {}),
+                **entry,
+                "alias_for": key,
+            }
         _save_unlocked(history)

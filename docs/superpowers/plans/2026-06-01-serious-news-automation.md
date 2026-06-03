@@ -158,3 +158,27 @@ Result: PASS.
 
 Run: `D:\moneyprinter\lib\python\python.exe -m unittest tests.services.test_social_metadata tests.services.test_news_history tests.services.test_news_story_quality tests.controllers.test_news_automation tests.services.test_news_video_search tests.services.test_web_media tests.services.test_news_pipeline tests.services.test_task_news_history tests.services.test_news_diagnostics tests.services.test_video_branding tests.services.test_youtube_publisher -v`
 Result: PASS, 35 tests.
+
+## Task 7: Broaden Unique Article Selection
+
+**Files:**
+- Modify: `app/services/news_sources/__init__.py`
+- Modify: `app/services/news_history.py`
+- Test: `tests/services/test_news_history.py`
+- Test: `tests/services/test_news_providers.py`
+
+- [x] **Step 1: Collect auto-source candidates from every configured provider**
+
+`auto` now treats `limit` as a per-source candidate request instead of stopping as soon as the first provider fills the total limit. This gives ranking and history filtering enough candidates to find the next fresh article when early providers repeat old stories.
+
+- [x] **Step 2: Detect duplicate articles by strong headline**
+
+The news history ledger now stores an additional title signature for sufficiently specific headlines. A later story with a different URL but the same strong headline is skipped as a duplicate.
+
+- [x] **Step 3: Verify**
+
+Run: `D:\moneyprinter\lib\python\python.exe -m compileall app\services\news_sources\__init__.py app\services\news_history.py tests\services\test_news_history.py tests\services\test_news_providers.py`
+Result: PASS.
+
+Run: `D:\moneyprinter\lib\python\python.exe -m unittest tests.services.test_social_metadata tests.services.test_news_history tests.services.test_news_story_quality tests.services.test_news_providers tests.controllers.test_news_automation tests.services.test_news_video_search tests.services.test_web_media tests.services.test_news_pipeline tests.services.test_task_news_history tests.services.test_news_diagnostics tests.services.test_video_branding tests.services.test_youtube_publisher -v`
+Result: PASS, 41 tests.

@@ -137,6 +137,56 @@ class NewsProviderTest(unittest.TestCase):
 
         self.assertEqual([story.title for story in stories], ["Shared story", "Fresh story"])
 
+    def test_auto_source_collects_beyond_first_source_limit(self):
+        class FakeProvider:
+            def __init__(self, stories):
+                self.stories = stories
+
+            def search(self, query):
+                return self.stories[: query.limit]
+
+        providers = {
+            "telethon": FakeProvider(
+                [
+                    news_sources.NewsStory(
+                        provider="telethon",
+                        title="Used one",
+                        url="https://t.me/demo/1",
+                    ),
+                    news_sources.NewsStory(
+                        provider="telethon",
+                        title="Used two",
+                        url="https://t.me/demo/2",
+                    ),
+                ]
+            ),
+            "guardian": FakeProvider(
+                [
+                    news_sources.NewsStory(
+                        provider="guardian",
+                        title="Fresh from second source",
+                        url="https://guardian.example/fresh",
+                    )
+                ]
+            ),
+        }
+
+        with mock.patch.dict(
+            "app.services.news_sources.config.app",
+            {"news_auto_sources": ["telethon", "guardian"]},
+            clear=False,
+        ), mock.patch.object(
+            news_sources, "get_provider", lambda source: providers.get(source)
+        ):
+            stories = news_sources.search(
+                "auto", NewsQueryRequest(source="auto", query="world", limit=2)
+            )
+
+        self.assertEqual(
+            [story.title for story in stories],
+            ["Used one", "Used two", "Fresh from second source"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

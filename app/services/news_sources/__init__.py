@@ -59,8 +59,6 @@ def _search_auto(query: NewsQueryRequest) -> list[NewsStory]:
                 continue
             seen.add(key)
             stories.append(story)
-            if len(stories) >= query.limit:
-                return stories
     return stories
 
 

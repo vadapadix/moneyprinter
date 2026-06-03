@@ -39,6 +39,30 @@ class NewsHistoryTest(unittest.TestCase):
 
         self.assertEqual([story.url for story in result], ["https://a.test/2"])
 
+    def test_filter_new_stories_skips_same_strong_headline_from_different_url(self):
+        first = NewsStory(
+            provider="newsdata",
+            title="Central bank announces emergency rate decision",
+            url="https://news.example/rate-decision",
+        )
+        duplicate_headline = NewsStory(
+            provider="guardian",
+            title="Central bank announces emergency rate decision",
+            url="https://guardian.example/rate-decision",
+        )
+        fresh = NewsStory(
+            provider="guardian",
+            title="Court approves new election timetable",
+            url="https://guardian.example/election-timetable",
+        )
+        news_history.reserve_story(first, run_id="run-1", task_id="task-1")
+
+        result = news_history.filter_new_stories(
+            [duplicate_headline, fresh], limit=2
+        )
+
+        self.assertEqual([story.title for story in result], [fresh.title])
+
     def test_mark_story_result_updates_reserved_story(self):
         story = NewsStory(provider="telethon", title="Update", url="https://t.me/demo/1")
         news_history.reserve_story(story, run_id="run-1", task_id="task-1")

@@ -8,6 +8,7 @@ from typing import Iterable
 
 from loguru import logger
 
+from app.config import config
 from app.models.schema import NewsStory
 from app.utils import utils
 
@@ -27,12 +28,99 @@ def _normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip().lower())
 
 
+def _title_tokens(value: str) -> set[str]:
+    stop_words = {
+        "a",
+        "an",
+        "and",
+        "as",
+        "at",
+        "after",
+        "by",
+        "for",
+        "from",
+        "in",
+        "is",
+        "of",
+        "on",
+        "or",
+        "the",
+        "to",
+        "with",
+        "і",
+        "й",
+        "та",
+        "або",
+        "в",
+        "у",
+        "на",
+        "з",
+        "із",
+        "про",
+        "що",
+        "як",
+    }
+    raw_tokens = re.findall(r"[\w'-]{3,}", _normalize_text(value), flags=re.UNICODE)
+    return {
+        _normalize_title_token(token)
+        for token in raw_tokens
+        if _normalize_title_token(token) not in stop_words
+    }
+
+
+def _normalize_title_token(token: str) -> str:
+    token = token.strip("'")
+    if re.fullmatch(r"[a-z]{5,}s", token):
+        return token[:-1]
+    return token
+
+
 def _title_signature(value: str) -> str:
-    normalized = re.sub(r"[^0-9a-z]+", " ", _normalize_text(value)).strip()
+    normalized = " ".join(sorted(_title_tokens(value)))
     if len(normalized) < 18:
         return ""
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
     return f"title:{digest}"
+
+
+def _title_similarity(left: set[str], right: set[str]) -> float:
+    if not left or not right:
+        return 0.0
+    return len(left.intersection(right)) / len(left.union(right))
+
+
+def _similarity_threshold() -> float:
+    try:
+        return min(1.0, max(0.1, float(config.app.get("news_title_similarity_threshold", 0.78))))
+    except (TypeError, ValueError):
+        return 0.78
+
+
+def _entry_title_tokens(entry: dict) -> set[str]:
+    tokens = entry.get("title_tokens") if isinstance(entry, dict) else None
+    if isinstance(tokens, list):
+        return {str(token) for token in tokens if str(token).strip()}
+    if isinstance(entry, dict):
+        return _title_tokens(str(entry.get("title") or ""))
+    return set()
+
+
+def _has_similar_title(
+    story: NewsStory,
+    history_entries: Iterable[dict],
+    batch_title_tokens: Iterable[set[str]],
+) -> bool:
+    story_tokens = _title_tokens(story.title)
+    if len(story_tokens) < 3:
+        return False
+    threshold = _similarity_threshold()
+    for tokens in batch_title_tokens:
+        if _title_similarity(story_tokens, tokens) >= threshold:
+            return True
+    for entry in history_entries:
+        if _title_similarity(story_tokens, _entry_title_tokens(entry)) >= threshold:
+            return True
+    return False
 
 
 def _story_signatures(story: NewsStory) -> set[str]:
@@ -94,13 +182,20 @@ def is_seen(story: NewsStory) -> bool:
 def filter_new_stories(stories: Iterable[NewsStory], limit: int) -> list[NewsStory]:
     selected = []
     seen_in_batch = set()
+    seen_title_tokens = []
     with _LOCK:
         history = _load_unlocked().get("stories", {})
+        history_entries = list(history.values())
         for story in stories:
             signatures = _story_signatures(story)
-            if signatures.intersection(history) or signatures.intersection(seen_in_batch):
+            if (
+                signatures.intersection(history)
+                or signatures.intersection(seen_in_batch)
+                or _has_similar_title(story, history_entries, seen_title_tokens)
+            ):
                 continue
             seen_in_batch.update(signatures)
+            seen_title_tokens.append(_title_tokens(story.title))
             selected.append(story)
             if len(selected) >= limit:
                 break
@@ -118,6 +213,7 @@ def reserve_story(story: NewsStory, run_id: str = "", task_id: str = "") -> str:
             "provider": story.provider,
             "title": story.title,
             "url": story.url,
+            "title_tokens": sorted(_title_tokens(story.title)),
             "run_id": run_id,
             "task_id": task_id,
             "reserved_at": _now(),
@@ -152,6 +248,7 @@ def mark_story_result(
             "provider": story.provider or current.get("provider", ""),
             "title": story.title or current.get("title", ""),
             "url": story.url or current.get("url", ""),
+            "title_tokens": sorted(_title_tokens(story.title or current.get("title", ""))),
             "task_id": task_id or current.get("task_id", ""),
             "completed_at": _now(),
             "video_count": len(videos or []),

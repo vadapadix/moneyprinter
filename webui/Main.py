@@ -31,6 +31,7 @@ from app.services import news_analytics
 from app.services import news_diagnostics
 from app.services import news_history
 from app.services import llm, voice
+from app.services import social_publisher
 from app.services import task as tm
 from app.services import youtube_oauth
 from app.services.publishers.tiktok import TikTokPublisher
@@ -81,7 +82,7 @@ def run_test_upload_inline(uploaded_file, platform: str) -> dict:
             handle.write(uploaded_file.getbuffer())
 
         if platform in ("tiktok", "both"):
-            tiktok_result = TikTokPublisher().publish(
+            tiktok_result = social_publisher.get_publisher("tiktok").publish(
                 video_path=temp_file_path,
                 metadata=metadata,
                 privacy=PublishPrivacy.private,
@@ -89,7 +90,7 @@ def run_test_upload_inline(uploaded_file, platform: str) -> dict:
             results["tiktok"] = tiktok_result.to_dict()
 
         if platform in ("youtube", "both"):
-            youtube_result = YouTubeShortsPublisher().publish(
+            youtube_result = social_publisher.get_publisher("youtube").publish(
                 video_path=temp_file_path,
                 metadata=metadata,
                 privacy=PublishPrivacy.private,

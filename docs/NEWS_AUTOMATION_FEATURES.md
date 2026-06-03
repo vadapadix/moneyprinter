@@ -19,6 +19,8 @@ When `telegram_global_search = true`, Telethon does not use Telegram's premium-o
 
 Every queued story is reserved in `storage/news/history.json`. The primary key is the source URL when available, otherwise a provider/title/date hash. For sufficiently specific headlines, the ledger also stores a title signature, so the same article can be skipped even when it appears at a different URL.
 
+Title signatures are Unicode-aware, so non-English sources such as Ukrainian Telegram posts are deduplicated by headline as well as URL. The selector also applies `news_title_similarity_threshold` to avoid queuing near-duplicate headlines in the same run or across previous runs.
+
 When the first fetched batch is mostly old/reserved stories, the automation increases the provider fetch limit in waves until it finds the requested number of unique articles or reaches `news_unique_selection_max_fetch_multiplier`. Each queued task receives the selection attempt summary in diagnostics, so a user can see whether the run stopped because the providers had no new stories or because the limit was reached.
 
 Story result status is updated after generation:
@@ -84,6 +86,8 @@ When `social_auto_publish` or the news run request enables publishing, the task 
 YouTube uses the official YouTube upload path. TikTok uses the configured TikTok Content Posting API path and still depends on TikTok review/scope constraints.
 
 TikTok can also run in `tiktok_publish_mode = "browser_assist"`. In this mode the app does not store a TikTok password and does not call the Content Posting API. It creates a local upload package with the MP4, `caption.txt`, `metadata.json`, and a helper HTML page, copies the caption to the clipboard when possible, opens TikTok Studio, and returns `manual_review_required` so the creator can review and click Post manually.
+
+Upload tests use the same configured publisher selector as real task publishing. This means the Streamlit upload-test buttons and `/api/v1/test-upload` exercise YouTube upload, TikTok API upload, or TikTok browser assist according to the current config instead of bypassing the selected mode.
 
 Every completed task includes `publish_preflight`, which explains whether publishing was requested and which platforms were enabled or skipped before upload. Common skip reasons are:
 

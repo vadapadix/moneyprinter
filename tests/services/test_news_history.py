@@ -63,6 +63,51 @@ class NewsHistoryTest(unittest.TestCase):
 
         self.assertEqual([story.title for story in result], [fresh.title])
 
+    def test_filter_new_stories_skips_same_non_latin_headline_from_different_url(self):
+        first = NewsStory(
+            provider="telethon",
+            title="Українська енергетика отримала новий пакет допомоги",
+            url="https://t.me/source/1",
+        )
+        duplicate_headline = NewsStory(
+            provider="telegram",
+            title="Українська енергетика отримала новий пакет допомоги",
+            url="https://t.me/other/99",
+        )
+        fresh = NewsStory(
+            provider="telegram",
+            title="Французький суд ухвалив рішення у резонансній справі",
+            url="https://t.me/other/100",
+        )
+        news_history.reserve_story(first, run_id="run-1", task_id="task-1")
+
+        result = news_history.filter_new_stories(
+            [duplicate_headline, fresh], limit=2
+        )
+
+        self.assertEqual([story.title for story in result], [fresh.title])
+
+    def test_filter_new_stories_skips_similar_title_in_same_batch(self):
+        first = NewsStory(
+            provider="guardian",
+            title="Government announces emergency aid package after floods",
+            url="https://news.example/floods-1",
+        )
+        similar = NewsStory(
+            provider="newsdata",
+            title="Government announces emergency flood aid package",
+            url="https://news.example/floods-2",
+        )
+        fresh = NewsStory(
+            provider="newsdata",
+            title="Researchers unveil new battery material for electric cars",
+            url="https://news.example/battery",
+        )
+
+        result = news_history.filter_new_stories([first, similar, fresh], limit=3)
+
+        self.assertEqual([story.title for story in result], [first.title, fresh.title])
+
     def test_mark_story_result_updates_reserved_story(self):
         story = NewsStory(provider="telethon", title="Update", url="https://t.me/demo/1")
         news_history.reserve_story(story, run_id="run-1", task_id="task-1")

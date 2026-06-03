@@ -30,6 +30,7 @@ from app.models.schema import (
     VideoMaterialUploadResponse,
     VideoMaterialRetrieveResponse
 )
+from app.services import social_publisher
 from app.services import state as sm
 from app.services import task as tm
 from app.utils import file_security, utils
@@ -404,8 +405,6 @@ async def download_video(request: Request, file_path: str):
     )
 
 from app.models.schema import PublishPrivacy
-from app.services.publishers.tiktok import TikTokPublisher
-from app.services.publishers.youtube import YouTubeShortsPublisher
 
 
 @router.post("/test-upload", summary="Test video upload to TikTok and YouTube")
@@ -460,18 +459,13 @@ def test_upload_video(
         # Test TikTok upload
         if platform in ["tiktok", "both"]:
             logger.info(f"Testing TikTok upload for {request_id}")
-            tiktok_publisher = TikTokPublisher()
+            tiktok_publisher = social_publisher.get_publisher("tiktok")
             tiktok_result = tiktok_publisher.publish(
                 video_path=temp_file_path,
                 metadata=metadata,
                 privacy=PublishPrivacy.private
             )
-            results["tiktok"] = {
-                "success": tiktok_result.success,
-                "status": tiktok_result.status,
-                "error": tiktok_result.error,
-                "post_id": tiktok_result.post_id
-            }
+            results["tiktok"] = tiktok_result.to_dict()
             
             if not tiktok_result.success:
                 logger.error(f"TikTok test upload failed: {tiktok_result.error}")
@@ -479,19 +473,13 @@ def test_upload_video(
         # Test YouTube upload
         if platform in ["youtube", "both"]:
             logger.info(f"Testing YouTube upload for {request_id}")
-            youtube_publisher = YouTubeShortsPublisher()
+            youtube_publisher = social_publisher.get_publisher("youtube")
             youtube_result = youtube_publisher.publish(
                 video_path=temp_file_path,
                 metadata=metadata,
                 privacy=PublishPrivacy.private,
             )
-            results["youtube"] = {
-                "success": youtube_result.success,
-                "status": youtube_result.status,
-                "error": youtube_result.error,
-                "video_id": youtube_result.post_id,
-                "url": youtube_result.url,
-            }
+            results["youtube"] = youtube_result.to_dict()
             
             if not youtube_result.success:
                 logger.error(f"YouTube test upload failed: {youtube_result.error}")

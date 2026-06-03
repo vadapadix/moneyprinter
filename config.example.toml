@@ -353,6 +353,7 @@ news_web_search_enabled = true
 news_web_media_timeout = 20
 news_story_fetch_multiplier = 3
 news_unique_selection_max_fetch_multiplier = 12
+news_title_similarity_threshold = 0.78
 news_ytdlp_enabled = true
 news_ytdlp_web_search_enabled = true
 news_ytdlp_timeout = 30

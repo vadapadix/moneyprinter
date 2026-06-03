@@ -316,3 +316,26 @@ Telethon global search now scans accessible dialogs and joined channels instead 
 - [x] **Step 3: Preserve news media priority**
 
 News tasks force sequential media order by default so direct/related news footage stays ahead of stock fallback in the final video.
+
+## Task 14: Tighten Upload Button Paths and Article Uniqueness
+
+**Files:**
+- Modify: `app/controllers/v1/video.py`
+- Modify: `webui/Main.py`
+- Modify: `app/services/news_history.py`
+- Modify: `config.example.toml`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/controllers/test_video_upload.py`
+- Test: `tests/services/test_news_history.py`
+
+- [x] **Step 1: Route test uploads through publisher selection**
+
+Streamlit inline test uploads and `/api/v1/test-upload` now use `social_publisher.get_publisher()`, so TikTok browser assist, TikTok API, and YouTube all follow the same selected publishing path as generated tasks.
+
+- [x] **Step 2: Deduplicate Unicode and near-duplicate headlines**
+
+News history now stores Unicode title tokens and applies `news_title_similarity_threshold` to skip matching or near-matching article headlines across previous runs and the current batch.
+
+- [x] **Step 3: Cover behavior with focused tests**
+
+Controller tests verify test upload uses the configured publisher selector. News history tests verify non-Latin duplicate headlines and same-batch near-duplicates are skipped.

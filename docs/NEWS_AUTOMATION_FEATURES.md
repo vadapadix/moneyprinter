@@ -105,6 +105,15 @@ Watermark config:
 
 Each task writes diagnostics to `storage/news/diagnostics/{task_id}.json`. Streamlit automation output and `/tasks/{task_id}/publish` include those diagnostics.
 
+The same responses also include `news_media_summary`, a compact view of the media decision path:
+
+- `status`: whether the run used news media, only fallback media, or no media.
+- `total_video_count`: clips collected for the edit.
+- `non_stock_video_count`: clips from direct story media, Telegram, article/video pages, or `yt-dlp`.
+- `stock_fallback_used`: whether stock footage had to fill gaps.
+- `used_sources`: sources that actually supplied clips.
+- `stages`: per-stage requested/downloaded counts, paths, `yt-dlp` attempt count, and skipped relevance count.
+
 Important events:
 
 - `news_story_reserved`;

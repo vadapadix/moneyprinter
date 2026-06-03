@@ -598,13 +598,15 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         return
 
     if stop_at == "materials":
+        news_media_summary = news_diagnostics.get_media_summary(task_id)
         sm.state.update_task(
             task_id,
             state=const.TASK_STATE_COMPLETE,
             progress=100,
             materials=downloaded_videos,
+            news_media_summary=news_media_summary,
         )
-        return {"materials": downloaded_videos}
+        return {"materials": downloaded_videos, "news_media_summary": news_media_summary}
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=50)
 
@@ -735,6 +737,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         publish_results=publish_results,
         reason="completed",
     )
+    news_media_summary = news_diagnostics.get_media_summary(task_id)
 
     kwargs = {
         "videos": final_video_paths,
@@ -745,6 +748,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "audio_duration": audio_duration,
         "subtitle_path": subtitle_path,
         "materials": downloaded_videos,
+        "news_media_summary": news_media_summary,
         "social_metadata": generated_social_metadata.model_dump(),
         "publish_results": publish_results if publish_results else None,
         "cross_post_results": publish_results if publish_results else None,

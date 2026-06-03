@@ -224,3 +224,25 @@ News material preparation now tries direct story media, then related Telegram cl
 - [x] **Step 3: Record diagnostics**
 
 Tasks now record `news_related_telegram_search_started` and `news_related_telegram_search_completed` with query, requested count, downloaded paths, and total video count.
+
+## Task 10: Expose Media Source Summary
+
+**Files:**
+- Modify: `app/services/news_diagnostics.py`
+- Modify: `app/services/task.py`
+- Modify: `app/controllers/v1/automation.py`
+- Modify: `webui/Main.py`
+- Test: `tests/services/test_news_diagnostics.py`
+- Test: `tests/controllers/test_news_automation.py`
+
+- [x] **Step 1: Summarize media provenance**
+
+Diagnostics now produce `news_media_summary` with total clips, non-stock clip count, used sources, fallback status, and per-stage details for direct news media, related Telegram clips, `yt-dlp`, and stock fallback.
+
+- [x] **Step 2: Return summary from task results**
+
+Completed tasks and `stop_at="materials"` runs now persist `news_media_summary` alongside the generated materials.
+
+- [x] **Step 3: Expose summary in UI/API**
+
+Streamlit inline news automation payloads and `/api/v1/automation/tasks/{task_id}/publish` now include the same media summary so source/fallback behavior is visible without reading terminal logs.

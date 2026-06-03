@@ -154,6 +154,9 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
             result = tm.start(task_id=task_id, params=task_params)
         publish_results = result.get("publish_results") if result else []
         videos = result.get("videos", []) if result else []
+        media_summary = (
+            result.get("news_media_summary") if result else None
+        ) or news_diagnostics.get_media_summary(task_id)
         news_history.mark_story_result(
             story=story,
             task_id=task_id,
@@ -168,6 +171,7 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
                 "success": bool(videos),
                 "videos": videos,
                 "publish_results": publish_results or [],
+                "news_media_summary": media_summary,
                 "diagnostics": news_diagnostics.get_task_diagnostics(task_id),
             }
         )

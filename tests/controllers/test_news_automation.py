@@ -149,6 +149,34 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertIn("Write a short factual news voiceover in English", params.video_subject)
         self.assertIn("Українська новина", params.video_subject)
 
+    def test_publish_status_includes_news_media_summary(self):
+        with mock.patch.object(
+            automation.sm.state,
+            "get_task",
+            return_value={
+                "social_metadata": {"title": "Story title"},
+                "publish_results": None,
+                "cross_post_results": None,
+            },
+        ), mock.patch.object(
+            automation.news_diagnostics,
+            "get_media_summary",
+            return_value={"status": "news_media_ready", "total_video_count": 2},
+        ), mock.patch.object(
+            automation.news_diagnostics,
+            "get_task_diagnostics",
+            return_value=[],
+        ):
+            response = automation.get_publish_status(
+                request=mock.Mock(headers={}), task_id="task-1"
+            )
+
+        self.assertEqual(response["status"], 200)
+        self.assertEqual(
+            response["data"]["news_media_summary"],
+            {"status": "news_media_ready", "total_video_count": 2},
+        )
+
     def test_prepare_news_run_skips_previously_reserved_stories(self):
         used = NewsStory(
             provider="newsdata",

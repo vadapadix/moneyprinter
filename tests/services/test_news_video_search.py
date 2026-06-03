@@ -41,6 +41,17 @@ class FakeYoutubeDL:
 
 
 class NewsVideoSearchTest(unittest.TestCase):
+    def setUp(self):
+        self.web_search_config = mock.patch.dict(
+            "app.services.news_video_search.config.app",
+            {"news_ytdlp_web_search_enabled": False},
+            clear=False,
+        )
+        self.web_search_config.start()
+
+    def tearDown(self):
+        self.web_search_config.stop()
+
     def test_search_and_download_uses_ytdlp_search(self):
         fake_module = types.SimpleNamespace(YoutubeDL=FakeYoutubeDL)
         with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
@@ -162,6 +173,43 @@ class NewsVideoSearchTest(unittest.TestCase):
         self.assertTrue(result.paths[0].endswith("relevant.mp4"))
         self.assertGreaterEqual(len(calls), 2)
         self.assertEqual(result.attempts[0]["skipped_irrelevant_count"], 1)
+
+    def test_search_report_tries_web_video_pages_when_enabled(self):
+        calls = []
+
+        class WebPageYoutubeDL(FakeYoutubeDL):
+            def extract_info(self, target, download=True):
+                calls.append(target)
+                dirname = os.path.dirname(self.options["outtmpl"])
+                path = os.path.join(dirname, "web-page-video.mp4")
+                with open(path, "wb") as handle:
+                    handle.write(b"video")
+                return {
+                    "title": "major news headline verified footage",
+                    "requested_downloads": [{"filepath": path}],
+                }
+
+        fake_module = types.SimpleNamespace(YoutubeDL=WebPageYoutubeDL)
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            "app.services.news_video_search.config.app",
+            {"news_ytdlp_web_search_enabled": True},
+            clear=False,
+        ), mock.patch.object(
+            news_video_search.web_media,
+            "search_video_pages",
+            return_value=["https://video.example.com/story"],
+        ), mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            result = news_video_search.search_and_download_report(
+                "major news headline",
+                save_dir=temp_dir,
+                limit=1,
+            )
+
+        self.assertEqual(calls[0], "https://video.example.com/story")
+        self.assertTrue(result.paths[0].endswith("web-page-video.mp4"))
+        self.assertEqual(result.attempts[0]["kind"], "web_search_url")
 
 
 if __name__ == "__main__":

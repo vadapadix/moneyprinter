@@ -76,6 +76,50 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(response["data"]["queued_count"], 1)
         self.assertEqual(response["data"]["tasks"][0]["story"]["title"], "Telegram update")
         self.assertEqual(len(added_tasks), 1)
+        self.assertEqual(added_tasks[0][0][0], automation._run_news_tasks_sequential)
+
+    def test_news_automation_runs_tasks_sequentially(self):
+        first = automation.automation.build_video_params_from_news(
+            NewsAutomationRunRequest(source="telethon", query="demo", auto_publish=True),
+            NewsStory(
+                provider="telethon",
+                title="First story",
+                summary="First summary",
+                url="https://t.me/demo/1",
+            ),
+        )
+        second = automation.automation.build_video_params_from_news(
+            NewsAutomationRunRequest(source="telethon", query="demo", auto_publish=True),
+            NewsStory(
+                provider="telethon",
+                title="Second story",
+                summary="Second summary",
+                url="https://t.me/demo/2",
+            ),
+        )
+        calls = []
+
+        with mock.patch.object(
+            automation.tm,
+            "start",
+            side_effect=lambda task_id, params, stop_at: calls.append(
+                (task_id, params.news_source_context["title"], stop_at)
+            ),
+        ):
+            automation._run_news_tasks_sequential(
+                [
+                    {"task_id": "task-1", "params": first},
+                    {"task_id": "task-2", "params": second},
+                ]
+            )
+
+        self.assertEqual(
+            calls,
+            [
+                ("task-1", "First story", "video"),
+                ("task-2", "Second story", "video"),
+            ],
+        )
 
     def test_news_video_params_force_english_and_configured_voice(self):
         story = NewsStory(
@@ -97,7 +141,8 @@ class NewsAutomationControllerTest(unittest.TestCase):
 
         self.assertEqual(params.video_language, "en")
         self.assertEqual(params.voice_name, "en-US-BrianNeural-Male")
-        self.assertEqual(params.voice_rate, 1.32)
+        self.assertEqual(params.voice_rate, 1.42)
+        self.assertEqual(params.paragraph_number, 3)
         self.assertEqual(params.bgm_type, "news_serious")
         self.assertEqual(params.bgm_volume, 0.08)
         self.assertEqual(params.video_script, "")

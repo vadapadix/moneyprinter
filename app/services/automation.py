@@ -136,10 +136,10 @@ def build_video_params_from_news(
             "published_at": story.published_at,
             "keywords": story.keywords,
         },
-        paragraph_number=int(config.app.get("news_script_paragraphs", 2)),
+        paragraph_number=int(config.app.get("news_script_paragraphs", 3)),
         voice_name=_configured_voice_name(),
         voice_rate=float(
-            config.app.get("news_voice_rate", 1.32)
+            config.app.get("news_voice_rate", 1.42)
         ),
         bgm_type=_news_bgm_type(),
         bgm_volume=_news_bgm_volume(),

@@ -109,7 +109,7 @@ class NewsPipelineTest(unittest.TestCase):
 
         self.assertIn("headline is the angle", subject)
         self.assertIn("Use only facts found in the source material", subject)
-        self.assertIn("120-170 spoken words", subject)
+        self.assertIn("160-220 spoken words", subject)
         self.assertIn("keep the script shorter instead of padding it", subject)
         self.assertIn("Drone strike hits Romanian border town", subject)
 

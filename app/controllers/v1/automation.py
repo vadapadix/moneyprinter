@@ -23,6 +23,26 @@ from app.utils import utils
 router = new_router()
 
 
+def _run_news_tasks_sequential(tasks: list[dict]) -> None:
+    for task_info in tasks:
+        task_id = task_info["task_id"]
+        params = task_info["params"]
+        try:
+            tm.start(task_id=task_id, params=params, stop_at="video")
+        except Exception as exc:
+            sm.state.update_task(
+                task_id,
+                state=const.TASK_STATE_FAILED,
+                progress=100,
+                error=str(exc),
+            )
+            news_diagnostics.record_event(
+                task_id,
+                "news_sequential_task_failed",
+                reason=str(exc),
+            )
+
+
 @router.post("/trends", summary="Discover trend candidates")
 def discover_trends(request: Request, body: TrendQueryRequest):
     candidates = trends.discover_trends(
@@ -98,15 +118,17 @@ def create_news_automation_run(request: Request, body: NewsAutomationRunRequest)
             news_story=story.model_dump(),
             social_auto_publish=params.social_auto_publish,
         )
-        video_controller.task_manager.add_task(
-            tm.start, task_id=task_id, params=params, stop_at="video"
-        )
         queued_tasks.append(
             {
                 "task_id": task_id,
                 "story": story.model_dump(),
                 "params": params.model_dump(mode="json"),
             }
+        )
+
+    if prepared["tasks"]:
+        video_controller.task_manager.add_task(
+            _run_news_tasks_sequential, tasks=prepared["tasks"]
         )
 
     return utils.get_response(

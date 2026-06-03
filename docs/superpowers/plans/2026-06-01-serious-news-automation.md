@@ -124,3 +124,37 @@ Record `social_metadata_ready`, `social_publish_skipped`, and `social_publish_co
 - [ ] **Step 4: Expose diagnostics**
 
 Return diagnostics in Streamlit inline automation payloads and `/tasks/{task_id}/publish`.
+
+## Task 6: Sequential Publishing And Deeper Video Search
+
+**Files:**
+- Modify: `app/controllers/v1/automation.py`
+- Modify: `app/services/automation.py`
+- Modify: `app/services/llm.py`
+- Modify: `app/services/news_pipeline.py`
+- Modify: `app/services/news_video_search.py`
+- Modify: `app/services/web_media.py`
+- Modify: `config.example.toml`
+- Test: `tests/controllers/test_news_automation.py`
+- Test: `tests/services/test_news_pipeline.py`
+- Test: `tests/services/test_news_video_search.py`
+
+- [x] **Step 1: Run news automation tasks sequentially**
+
+API-created news runs now enqueue one sequential runner. Each story calls `tm.start()` and reaches its publish phase before the next story starts.
+
+- [x] **Step 2: Make news scripts more substantial**
+
+News defaults now request 3 paragraphs, a faster `news_voice_rate`, and a 160-220 spoken-word serious newsreader script when source facts are sufficient.
+
+- [x] **Step 3: Add web-page candidates to yt-dlp search**
+
+`news_video_search` now asks `web_media.search_video_pages()` for headline-matching video/article pages and tries those URLs with `yt-dlp` before the stock fallback path.
+
+- [x] **Step 4: Verify**
+
+Run: `D:\moneyprinter\lib\python\python.exe -m compileall app\controllers\v1\automation.py app\services\automation.py app\services\llm.py app\services\news_pipeline.py app\services\news_video_search.py app\services\web_media.py tests\controllers\test_news_automation.py tests\services\test_news_pipeline.py tests\services\test_news_video_search.py`
+Result: PASS.
+
+Run: `D:\moneyprinter\lib\python\python.exe -m unittest tests.services.test_social_metadata tests.services.test_news_history tests.services.test_news_story_quality tests.controllers.test_news_automation tests.services.test_news_video_search tests.services.test_web_media tests.services.test_news_pipeline tests.services.test_task_news_history tests.services.test_news_diagnostics tests.services.test_video_branding tests.services.test_youtube_publisher -v`
+Result: PASS, 35 tests.

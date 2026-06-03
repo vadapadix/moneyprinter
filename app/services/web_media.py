@@ -70,6 +70,10 @@ def _search_urls(query: str, limit: int = 4) -> list[str]:
     return urls
 
 
+def search_video_pages(query: str, limit: int = 4) -> list[str]:
+    return _search_urls(query, limit=limit)
+
+
 def _search_query_variants(story: NewsStory) -> list[str]:
     candidates = [
         story.title,

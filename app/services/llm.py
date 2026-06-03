@@ -478,6 +478,8 @@ Generate a script for a video, depending on the subject of the video.
 8. if a language is provided in Initialization, respond only in that language; otherwise respond in the same language as the video subject.
 9. when the subject contains source material or news facts, stay strictly within those facts and do not add unsupported context.
 10. avoid filler phrases, generic lessons, promotional language, and vague transitions; every sentence should move the story forward.
+11. for news source material, write a serious newsreader voiceover of 160-220 spoken words when the source has enough facts; if the source is thin, use fewer words rather than inventing details.
+12. for news source material, include the headline angle, the concrete event, the people or organizations involved, the location, the latest known consequence, and why it matters only when those facts are present in the provided source.
 
 # Initialization:
 - video subject: {video_subject}

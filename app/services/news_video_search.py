@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from loguru import logger
 
 from app.config import config
+from app.services import web_media
 from app.utils import utils
 
 
@@ -120,6 +121,19 @@ def _candidate_targets(query: str, limit: int, source_context: dict | None = Non
 
     per_search_limit = max(1, min(limit, int(config.app.get("news_ytdlp_results_per_query", 3))))
     for variant in _query_variants(query, source_context):
+        if config.app.get("news_ytdlp_web_search_enabled", True):
+            try:
+                for url in web_media.search_video_pages(variant, limit=per_search_limit):
+                    targets.append(
+                        {
+                            "kind": "web_search_url",
+                            "query": variant,
+                            "target": url,
+                        }
+                    )
+            except Exception as exc:
+                logger.warning(f"yt-dlp web video search failed for '{variant}': {exc}")
+
         search_query = _english_news_query(variant)
         targets.append(
             {

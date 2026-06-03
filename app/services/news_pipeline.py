@@ -54,7 +54,7 @@ def build_script_subject(story: NewsStory, output_language: str = "English") -> 
         f"Write a short factual news voiceover in {output_language}. "
         "The headline is the angle of the story, so the script must stay directly on that headline. "
         "Use only facts found in the source material below. Do not invent names, numbers, causes, reactions, or consequences. "
-        "Aim for 120-170 spoken words with enough substance for a 45-60 second short, but if the source material is thin, keep the script shorter instead of padding it. "
+        "Aim for 160-220 spoken words with enough substance for a detailed 45-60 second short, but if the source material is thin, keep the script shorter instead of padding it. "
         "Use plain human newsreader English with concrete details and short sentences. "
         "Avoid filler, motivational wording, broad lessons, vague phrases like 'this highlights' or 'raises questions', and any intro such as 'welcome'. "
         "Do not mention Telegram, the source URL, hashtags, markdown, narrator labels, or that this is a script. "

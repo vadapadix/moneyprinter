@@ -202,3 +202,25 @@ Each `attempt` now includes `skipped_relevance` with the skipped title, matched 
 - [x] **Step 3: Document production knobs**
 
 Added `news_ytdlp_min_keyword_overlap` and `news_ytdlp_min_keyword_coverage` to the example config and documented the relevance gate in `docs/NEWS_AUTOMATION_FEATURES.md`.
+
+## Task 9: Prefer Related Telegram Clips Before YouTube/Stock
+
+**Files:**
+- Modify: `app/services/news_pipeline.py`
+- Modify: `app/services/task.py`
+- Modify: `config.example.toml`
+- Modify: `docs/NEWS_AUTOMATION_FEATURES.md`
+- Test: `tests/services/test_news_pipeline.py`
+- Test: `tests/services/test_task_news_history.py`
+
+- [x] **Step 1: Add related Telegram video discovery**
+
+`news_pipeline.discover_related_telegram_video_materials()` searches configured Telethon channels by the selected news headline and returns direct video materials.
+
+- [x] **Step 2: Insert Telegram clips before yt-dlp**
+
+News material preparation now tries direct story media, then related Telegram clips, then `yt-dlp`, then stock fallback.
+
+- [x] **Step 3: Record diagnostics**
+
+Tasks now record `news_related_telegram_search_started` and `news_related_telegram_search_completed` with query, requested count, downloaded paths, and total video count.

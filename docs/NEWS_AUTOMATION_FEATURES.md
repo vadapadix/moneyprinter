@@ -52,8 +52,9 @@ The media pipeline tries sources in this order:
 1. Direct media attached to the story, especially Telegram/downloaded video assets.
 2. Video URLs discovered from article pages, `og:video`, embedded `<video>` tags, and page metadata.
 3. Web search variants based on headline, provider, and category.
-4. `yt-dlp` source URL extraction, then multiple YouTube search variants around the headline, provider, category, latest footage, official video, and eyewitness video.
-5. Stock fallback from `news_stock_fallback_source`.
+4. Related Telegram video search across configured Telethon channels using the selected headline.
+5. `yt-dlp` source URL extraction, then multiple YouTube search variants around the headline, provider, category, latest footage, official video, and eyewitness video.
+6. Stock fallback from `news_stock_fallback_source`.
 
 The target clip count is controlled by `news_min_clips`.
 
@@ -108,6 +109,8 @@ Important events:
 
 - `news_story_reserved`;
 - `news_direct_media_ready`;
+- `news_related_telegram_search_started`;
+- `news_related_telegram_search_completed`;
 - `news_ytdlp_search_started`;
 - `news_ytdlp_search_completed`;
 - `news_stock_fallback_started`;

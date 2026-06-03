@@ -305,6 +305,38 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             or params.news_query
             or params.video_subject
         )
+        related_limit = max(0, min_news_clips - len(video_paths))
+        news_diagnostics.record_event(
+            task_id,
+            "news_related_telegram_search_started",
+            query=search_query,
+            requested_count=related_limit,
+            existing_video_count=len(video_paths),
+        )
+        related_materials = news_pipeline.discover_related_telegram_video_materials(
+            query=search_query,
+            limit=related_limit,
+        )
+        related_paths = []
+        for item in related_materials:
+            if os.path.isfile(item.url):
+                saved_video_path = item.url
+            else:
+                saved_video_path = material.save_video(item.url, utils.task_dir(task_id))
+            if saved_video_path and saved_video_path not in video_paths:
+                video_paths.append(saved_video_path)
+                related_paths.append(saved_video_path)
+        news_diagnostics.record_event(
+            task_id,
+            "news_related_telegram_search_completed",
+            query=search_query,
+            downloaded_count=len(related_paths),
+            total_video_count=len(video_paths),
+            downloaded_paths=related_paths,
+        )
+        if len(video_paths) >= min_news_clips:
+            return video_paths
+
         news_diagnostics.record_event(
             task_id,
             "news_ytdlp_search_started",

@@ -31,6 +31,44 @@ def build_materials_from_assets(assets: list[dict]) -> list[MaterialInfo]:
     return build_materials_from_story(story)
 
 
+def discover_related_telegram_video_materials(
+    query: str,
+    limit: int = 2,
+) -> list[MaterialInfo]:
+    if not config.app.get("news_related_telegram_video_enabled", True):
+        return []
+
+    query = (query or "").strip()
+    if not query or limit <= 0:
+        return []
+
+    search_limit = max(
+        limit,
+        int(config.app.get("news_related_telegram_video_search_limit", limit)),
+    )
+    stories = news_sources.search(
+        "telethon",
+        NewsQueryRequest(
+            source="telethon",
+            query=query,
+            limit=search_limit,
+            language=config.app.get("news_language", "en"),
+        ),
+    )
+
+    materials = []
+    seen = set()
+    for story in stories:
+        for material in build_materials_from_story(story):
+            if material.url in seen:
+                continue
+            seen.add(material.url)
+            materials.append(material)
+            if len(materials) >= limit:
+                return materials
+    return materials
+
+
 def build_source_context(story: NewsStory) -> dict:
     return {
         "provider": story.provider,

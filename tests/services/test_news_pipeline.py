@@ -43,6 +43,44 @@ class NewsPipelineTest(unittest.TestCase):
 
         self.assertEqual(enriched.media[0].url, "https://cdn.example.com/news.mp4")
 
+    def test_discover_related_telegram_video_materials_searches_telethon(self):
+        video_story = NewsStory(
+            provider="telethon",
+            title="Related clip",
+            media=[
+                NewsMediaAsset(
+                    provider="telethon",
+                    url="C:/clips/related.mp4",
+                    media_type="video",
+                    duration=8,
+                ),
+                NewsMediaAsset(
+                    provider="telethon",
+                    url="https://example.com/image.jpg",
+                    media_type="image",
+                ),
+            ],
+        )
+
+        with mock.patch.dict(
+            "app.services.news_pipeline.config.app",
+            {"news_related_telegram_video_enabled": True},
+            clear=False,
+        ), mock.patch.object(
+            news_pipeline.news_sources,
+            "search",
+            return_value=[video_story],
+        ) as search_mock:
+            materials = news_pipeline.discover_related_telegram_video_materials(
+                "Central bank decision", limit=1
+            )
+
+        self.assertEqual(len(materials), 1)
+        self.assertEqual(materials[0].provider, "telethon")
+        self.assertEqual(materials[0].url, "C:/clips/related.mp4")
+        self.assertEqual(search_mock.call_args.args[0], "telethon")
+        self.assertEqual(search_mock.call_args.args[1].query, "Central bank decision")
+
     def test_prepare_news_context_updates_video_params(self):
         params = VideoParams(
             video_source="news",

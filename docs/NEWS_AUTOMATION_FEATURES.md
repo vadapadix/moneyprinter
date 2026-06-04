@@ -147,6 +147,8 @@ The same responses also include `news_media_summary`, a compact view of the medi
 
 `yt-dlp` search treats `Maximum number of downloads reached` as a successful stop condition and recovers downloaded video files from the task media directory. Plain article URLs are not sent to `yt-dlp` as direct download targets unless they are direct video files or known video/social pages, so sources like Guardian articles are used as search context instead of producing `Unsupported URL` noise. Raw `yt-dlp` extractor errors are routed through the app logger so unsupported article URLs do not appear as unstructured console failures.
 
+Web video discovery uses a shorter, dedicated search timeout (`news_web_search_connect_timeout` and `news_web_search_timeout`) and stops trying additional search-query variants after a provider-level timeout. This keeps automation moving to Telegram, `yt-dlp`, and stock fallbacks instead of waiting on repeated DuckDuckGo failures for the same story.
+
 Final video rendering logs the BGM load, BGM mix, `write_videofile` start, periodic MoviePy progress, and `write_videofile` completion. The completion log includes the final MP4 size, and the render fails loudly if the output file is missing or empty. If a run appears to stop after `selected bgm`, the next log line now identifies whether it is stuck loading music, mixing audio, writing the final MP4, or validating the rendered file. The progress interval can be tuned with `moviepy_render_progress_interval_seconds`.
 
 Important events:

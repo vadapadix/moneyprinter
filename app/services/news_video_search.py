@@ -233,8 +233,9 @@ def _candidate_targets(query: str, limit: int, source_context: dict | None = Non
         overfetch_multiplier = 3
     configured_results = int(config.app.get("news_ytdlp_results_per_query", 3))
     per_search_limit = max(1, min(max(configured_results, limit * overfetch_multiplier), 12))
+    web_search_failed = False
     for variant in _query_variants(query, source_context):
-        if config.app.get("news_ytdlp_web_search_enabled", True):
+        if config.app.get("news_ytdlp_web_search_enabled", True) and not web_search_failed:
             try:
                 for url in web_media.search_video_pages(variant, limit=per_search_limit):
                     targets.append(
@@ -246,6 +247,8 @@ def _candidate_targets(query: str, limit: int, source_context: dict | None = Non
                     )
             except Exception as exc:
                 logger.warning(f"yt-dlp web video search failed for '{variant}': {exc}")
+                if web_media._stop_web_search_after_error(exc):
+                    web_search_failed = True
 
         search_query = _english_news_query(variant)
         targets.append(

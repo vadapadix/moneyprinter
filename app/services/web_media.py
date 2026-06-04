@@ -19,6 +19,31 @@ def _timeout() -> tuple[int, int]:
     return (10, int(config.app.get("news_web_media_timeout", 20)))
 
 
+def _search_timeout() -> tuple[int, int]:
+    try:
+        connect_timeout = float(config.app.get("news_web_search_connect_timeout", 3))
+    except (TypeError, ValueError):
+        connect_timeout = 3.0
+    try:
+        read_timeout = float(config.app.get("news_web_search_timeout", 6))
+    except (TypeError, ValueError):
+        read_timeout = 6.0
+    return (max(1.0, connect_timeout), max(1.0, read_timeout))
+
+
+def _stop_web_search_after_error(exc: Exception) -> bool:
+    if not config.app.get("news_web_search_stop_after_failure", True):
+        return False
+    return isinstance(
+        exc,
+        (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.TooManyRedirects,
+        ),
+    )
+
+
 def extract_urls(text: str) -> list[str]:
     urls = re.findall(r"https?://[^\s<>'\")]+", text or "")
     deduped = []
@@ -53,7 +78,7 @@ def _search_urls(query: str, limit: int = 4) -> list[str]:
         params={"q": f"{query} video"},
         headers=HEADERS,
         proxies=config.proxy,
-        timeout=_timeout(),
+        timeout=_search_timeout(),
     )
     response.raise_for_status()
     urls = []
@@ -120,6 +145,9 @@ def discover_story_media(story: NewsStory, limit: int = 3) -> list[NewsMediaAsse
                 urls.extend(_search_urls(query))
             except Exception as exc:
                 logger.warning(f"web media search failed for '{query}': {str(exc)}")
+                if _stop_web_search_after_error(exc):
+                    logger.warning("stopping web media search variants after provider failure")
+                    break
 
     assets = []
     seen = {asset.url for asset in story.media}

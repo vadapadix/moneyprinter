@@ -50,6 +50,49 @@ class WebMediaTest(unittest.TestCase):
         self.assertIn("Major headline guardian", calls)
         self.assertIn("Major headline world", calls)
 
+    def test_discover_story_media_stops_search_variants_after_timeout(self):
+        story = NewsStory(
+            provider="guardian",
+            title="Major headline",
+            category="world",
+        )
+        calls = []
+
+        def fake_search(query, limit=4):
+            calls.append(query)
+            raise web_media.requests.exceptions.ConnectTimeout("search timed out")
+
+        with mock.patch.object(web_media, "_search_urls", fake_search), mock.patch.dict(
+            "app.services.web_media.config.app",
+            {"news_web_search_stop_after_failure": True},
+            clear=False,
+        ):
+            assets = web_media.discover_story_media(story)
+
+        self.assertEqual(assets, [])
+        self.assertEqual(calls, ["Major headline"])
+
+    def test_search_urls_uses_fast_search_timeout(self):
+        response = mock.Mock()
+        response.text = ""
+        response.raise_for_status.return_value = None
+
+        with mock.patch.object(
+            web_media.requests,
+            "get",
+            return_value=response,
+        ) as get_mock, mock.patch.dict(
+            "app.services.web_media.config.app",
+            {
+                "news_web_search_connect_timeout": 2,
+                "news_web_search_timeout": 4,
+            },
+            clear=False,
+        ):
+            web_media._search_urls("Major headline")
+
+        self.assertEqual(get_mock.call_args.kwargs["timeout"], (2.0, 4.0))
+
 
 if __name__ == "__main__":
     unittest.main()

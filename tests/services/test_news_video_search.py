@@ -190,6 +190,34 @@ class NewsVideoSearchTest(unittest.TestCase):
 
         self.assertEqual(targets[0]["target"], "ytsearch8:major news headline English news video")
 
+    def test_candidate_targets_stops_web_search_after_provider_timeout(self):
+        calls = []
+
+        def failing_search(query, limit=4):
+            calls.append(query)
+            raise news_video_search.web_media.requests.exceptions.ConnectTimeout(
+                "search timed out"
+            )
+
+        with mock.patch.dict(
+            "app.services.news_video_search.config.app",
+            {"news_ytdlp_web_search_enabled": True},
+            clear=False,
+        ), mock.patch.object(
+            news_video_search.web_media,
+            "search_video_pages",
+            side_effect=failing_search,
+        ):
+            targets = news_video_search._candidate_targets(
+                "major news headline",
+                limit=1,
+                source_context={"provider": "guardian", "category": "world"},
+            )
+
+        self.assertEqual(calls, ["major news headline"])
+        self.assertTrue(all(item["kind"] == "youtube_search" for item in targets))
+        self.assertGreater(len(targets), 1)
+
     def test_search_report_skips_irrelevant_youtube_entries_and_tries_next_variant(self):
         calls = []
 

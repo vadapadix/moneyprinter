@@ -474,6 +474,10 @@ Unsupported source article URLs are captured by a custom yt-dlp logger instead o
 
 Source URLs from plain article pages are kept as story context, but only direct video files and known video/social pages are sent directly to `yt-dlp`. Guardian-style article URLs now move straight to headline-based video search without an unsupported URL attempt.
 
+- [x] **Step 3.2: Bound web-search provider timeouts**
+
+Web media discovery now uses a shorter dedicated search timeout and stops additional web-search variants after provider-level timeout/failure. Headline-based YouTube `yt-dlp` targets are still generated, so a slow DuckDuckGo path no longer stalls the rest of automation.
+
 - [x] **Step 4: Stabilize config-dependent preflight test**
 
 The TikTok direct-post preflight test now fixes `tiktok_publish_mode = "api"` so local browser-assist config does not change the expected skip reason.

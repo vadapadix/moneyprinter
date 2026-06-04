@@ -16,6 +16,17 @@ class NewsVideoSearchResult:
     attempts: list[dict]
 
 
+class _YtDlpLogger:
+    def debug(self, message):
+        logger.debug(message)
+
+    def warning(self, message):
+        logger.debug(message)
+
+    def error(self, message):
+        logger.debug(message)
+
+
 def _safe_filename(value: str) -> str:
     cleaned = re.sub(r"[^0-9A-Za-z._-]+", "_", (value or "").strip())
     return cleaned[:80] or utils.get_uuid(remove_hyphen=True)
@@ -223,6 +234,26 @@ def _downloaded_path(ydl, entry: dict) -> str:
     return ydl.prepare_filename(entry)
 
 
+def _is_max_downloads_stop(exc: Exception) -> bool:
+    return "Maximum number of downloads reached" in str(exc)
+
+
+def _collect_downloaded_video_files(save_dir: str, known_paths: list[str]) -> list[str]:
+    known = {os.path.abspath(path) for path in known_paths}
+    extensions = {".mp4", ".mov", ".mkv", ".webm"}
+    candidates = []
+    for filename in os.listdir(save_dir):
+        path = os.path.join(save_dir, filename)
+        if not os.path.isfile(path):
+            continue
+        if os.path.abspath(path) in known:
+            continue
+        if os.path.splitext(filename)[1].lower() not in extensions:
+            continue
+        candidates.append(path)
+    return sorted(candidates, key=lambda path: os.path.getmtime(path), reverse=True)
+
+
 def search_and_download_report(
     query: str,
     save_dir: str,
@@ -255,6 +286,7 @@ def search_and_download_report(
         "ignoreerrors": True,
         "socket_timeout": int(config.app.get("news_ytdlp_timeout", 30)),
         "max_downloads": max(1, limit),
+        "logger": _YtDlpLogger(),
     }
     if config.proxy:
         proxy = config.proxy.get("https") or config.proxy.get("http")
@@ -304,8 +336,32 @@ def search_and_download_report(
                         if len(downloaded) >= limit:
                             break
                 except Exception as exc:
-                    attempt["error"] = str(exc)
-                    logger.debug(f"yt-dlp target failed for {target}: {exc}")
+                    if _is_max_downloads_stop(exc):
+                        recovered_paths = _collect_downloaded_video_files(
+                            save_dir, downloaded
+                        )
+                        for path in recovered_paths:
+                            if len(downloaded) >= limit:
+                                break
+                            downloaded.append(path)
+                            attempt["downloaded_count"] += 1
+                            attempt["accepted_relevance"].append(
+                                {
+                                    "title": os.path.basename(path)[:160],
+                                    "webpage_url": target[:240],
+                                    "matched_terms": [],
+                                    "coverage": 0.0,
+                                    "required_overlap": 0,
+                                    "recovered_after": "max_downloads",
+                                }
+                            )
+                        logger.info(
+                            "yt-dlp reached max downloads for "
+                            f"{target}; recovered {len(recovered_paths)} downloaded file(s)"
+                        )
+                    else:
+                        attempt["error"] = str(exc)
+                        logger.debug(f"yt-dlp target failed for {target}: {exc}")
                 attempts.append(attempt)
     except Exception as exc:
         logger.warning(f"yt-dlp news video search failed: {exc}")

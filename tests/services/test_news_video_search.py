@@ -292,6 +292,33 @@ class NewsVideoSearchTest(unittest.TestCase):
         self.assertTrue(result.paths[0].endswith("web-page-video.mp4"))
         self.assertEqual(result.attempts[0]["kind"], "web_search_url")
 
+    def test_search_report_recovers_file_after_ytdlp_max_downloads_stop(self):
+        class MaxDownloadsYoutubeDL(FakeYoutubeDL):
+            def extract_info(self, target, download=True):
+                dirname = os.path.dirname(self.options["outtmpl"])
+                path = os.path.join(dirname, "max-downloads-video.mp4")
+                with open(path, "wb") as handle:
+                    handle.write(b"video")
+                raise Exception("Maximum number of downloads reached, stopping due to --max-downloads")
+
+        fake_module = types.SimpleNamespace(YoutubeDL=MaxDownloadsYoutubeDL)
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            result = news_video_search.search_and_download_report(
+                "major news headline",
+                save_dir=temp_dir,
+                limit=1,
+            )
+
+        self.assertEqual(len(result.paths), 1)
+        self.assertTrue(result.paths[0].endswith("max-downloads-video.mp4"))
+        self.assertEqual(result.attempts[0]["error"], "")
+        self.assertEqual(
+            result.attempts[0]["accepted_relevance"][0]["recovered_after"],
+            "max_downloads",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

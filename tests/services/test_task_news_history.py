@@ -143,7 +143,11 @@ class TaskNewsHistoryTest(unittest.TestCase):
             return_value=False,
         ), mock.patch.dict(
             "app.services.task.config.app",
-            {"tiktok_upload_enabled": True, "social_privacy": "private"},
+            {
+                "tiktok_publish_mode": "api",
+                "tiktok_upload_enabled": True,
+                "social_privacy": "private",
+            },
             clear=False,
         ):
             summary, privacy = task._social_publish_preflight(params)

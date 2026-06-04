@@ -937,6 +937,7 @@ def generate_video(
             f"candidates={bgm_selection.get('candidate_count')}"
         )
         try:
+            logger.info(f"loading bgm clip: {bgm_file}")
             bgm_clip = AudioFileClip(bgm_file).with_effects(
                 [
                     afx.MultiplyVolume(params.bgm_volume),
@@ -945,6 +946,9 @@ def generate_video(
                 ]
             )
             audio_clip = CompositeAudioClip([audio_clip, bgm_clip])
+            logger.info(
+                f"bgm mixed: duration={video_clip.duration:.2f}s, volume={params.bgm_volume}"
+            )
         except Exception as e:
             logger.error(f"failed to add bgm: {str(e)}")
 
@@ -952,6 +956,11 @@ def generate_video(
     # 显式沿用输入音频的采样率；如果取不到，再回退到 MoviePy 默认的 44100Hz。
     # 这样可以减少不同运行环境，尤其是 Docker 环境中再次重采样带来的音质波动。
     output_audio_fps = int(getattr(audio_clip, "fps", 0) or 44100)
+    logger.info(
+        "start writing final video: "
+        f"output={output_file}, duration={video_clip.duration:.2f}s, "
+        f"fps={fps}, audio_fps={output_audio_fps}, threads={params.n_threads or 2}"
+    )
     video_clip.write_videofile(
         output_file,
         audio_codec=audio_codec,
@@ -962,6 +971,7 @@ def generate_video(
         logger=None,
         fps=fps,
     )
+    logger.info(f"finished writing final video: {output_file}")
     video_clip.close()
     del video_clip
 

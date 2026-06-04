@@ -578,6 +578,47 @@ def _social_publish_preflight(params: VideoParams) -> tuple[dict, PublishPrivacy
     return summary, privacy
 
 
+def _social_publish_status(publish_preflight: dict, publish_results: list[dict]) -> dict:
+    publish_preflight = publish_preflight or {}
+    publish_results = publish_results or []
+    enabled_platforms = publish_preflight.get("enabled_platforms") or []
+    requested_platforms = publish_preflight.get("requested_platforms") or []
+    success_count = len([item for item in publish_results if item.get("success")])
+    failed_count = len([item for item in publish_results if not item.get("success")])
+    result_count = len(publish_results)
+
+    if not publish_preflight.get("auto_publish"):
+        status = "skipped"
+        reason = publish_preflight.get("skip_reason", "auto_publish_disabled")
+    elif not enabled_platforms:
+        status = "blocked"
+        reason = publish_preflight.get("skip_reason", "no_enabled_platforms")
+    elif result_count == 0:
+        status = "not_attempted"
+        reason = "no_publish_results"
+    elif success_count == result_count:
+        status = "uploaded"
+        reason = ""
+    elif success_count > 0:
+        status = "partial"
+        reason = "some_platforms_failed"
+    else:
+        status = "failed"
+        reason = "all_platforms_failed"
+
+    return {
+        "status": status,
+        "reason": reason,
+        "requested_platforms": requested_platforms,
+        "enabled_platforms": enabled_platforms,
+        "result_count": result_count,
+        "success_count": success_count,
+        "failed_count": failed_count,
+        "skipped_platforms": publish_preflight.get("skipped_platforms") or [],
+        "privacy": publish_preflight.get("privacy", ""),
+    }
+
+
 def _prepare_news_concat_mode(task_id: str, params: VideoParams, material_count: int) -> None:
     if type(params.video_concat_mode) is str:
         params.video_concat_mode = VideoConcatMode(params.video_concat_mode)
@@ -798,6 +839,13 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
             results=publish_results,
         )
 
+    publish_status = _social_publish_status(publish_preflight, publish_results)
+    news_diagnostics.record_event(
+        task_id,
+        "social_publish_status",
+        **publish_status,
+    )
+
     _mark_news_story_result(
         task_id,
         params,
@@ -819,6 +867,7 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         "materials": downloaded_videos,
         "news_media_summary": news_media_summary,
         "publish_preflight": publish_preflight,
+        "publish_status": publish_status,
         "social_metadata": generated_social_metadata.model_dump(),
         "publish_results": publish_results if publish_results else None,
         "cross_post_results": publish_results if publish_results else None,

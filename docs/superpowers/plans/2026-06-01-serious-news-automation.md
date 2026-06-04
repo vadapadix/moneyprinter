@@ -486,6 +486,10 @@ News source context now includes a deduplicated `source_urls` list from the stor
 
 When the LLM metadata response is unavailable or invalid, fallback metadata now uses the source headline, summary, source URL, keywords, and video terms to produce publish-ready title, description, hashtags, YouTube tags, and captions.
 
+- [x] **Step 3.5: Add explicit publish outcome status**
+
+Completed tasks now include `publish_status`, summarizing whether auto-publish was skipped, blocked by preflight, uploaded, partially uploaded, or failed across all configured platforms.
+
 - [x] **Step 4: Stabilize config-dependent preflight test**
 
 The TikTok direct-post preflight test now fixes `tiktok_publish_mode = "api"` so local browser-assist config does not change the expected skip reason.

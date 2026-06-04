@@ -97,7 +97,7 @@ Streamlit test-upload buttons now keep the last action result in `st.session_sta
 
 `GET /api/v1/tasks/{task_id}/youtube/preview` returns the exact YouTube upload body that would be sent for the first generated video without uploading anything. The preview includes `metadata_quality`, which reports whether the title came from the generated metadata or from a normalized fallback, the tag count, description length, Shorts marker presence, synthetic-media flag, and privacy status. Real YouTube upload results include the same `upload_body`, `normalized_metadata`, and `metadata_quality` in `raw`.
 
-Every completed task includes `publish_preflight`, which explains whether publishing was requested and which platforms were enabled or skipped before upload. Common skip reasons are:
+Every completed task includes `publish_preflight`, which explains whether publishing was requested and which platforms were enabled or skipped before upload. It also includes `publish_status`, a compact outcome summary with one of `skipped`, `blocked`, `not_attempted`, `uploaded`, `partial`, or `failed`. Common skip reasons are:
 
 - `auto_publish_disabled`;
 - `youtube_not_connected`;

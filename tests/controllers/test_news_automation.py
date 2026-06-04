@@ -159,6 +159,7 @@ class NewsAutomationControllerTest(unittest.TestCase):
                     "auto_publish": True,
                     "enabled_platforms": ["youtube"],
                 },
+                "publish_status": {"status": "uploaded", "success_count": 1},
                 "publish_results": None,
                 "cross_post_results": None,
             },
@@ -183,6 +184,10 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(
             response["data"]["publish_preflight"],
             {"auto_publish": True, "enabled_platforms": ["youtube"]},
+        )
+        self.assertEqual(
+            response["data"]["publish_status"],
+            {"status": "uploaded", "success_count": 1},
         )
 
     def test_youtube_preview_normalizes_unknown_title_without_uploading(self):

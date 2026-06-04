@@ -176,6 +176,7 @@ def get_publish_status(request: Request, task_id: str = Path(..., description="T
             "task_id": task_id,
             "social_metadata": task.get("social_metadata"),
             "publish_preflight": task.get("publish_preflight"),
+            "publish_status": task.get("publish_status"),
             "publish_results": task.get("publish_results"),
             "cross_post_results": task.get("cross_post_results"),
             "news_media_summary": task.get("news_media_summary")

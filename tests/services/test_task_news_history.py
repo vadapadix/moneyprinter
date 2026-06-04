@@ -205,6 +205,80 @@ class TaskNewsHistoryTest(unittest.TestCase):
         self.assertEqual(summary["skipped_platforms"], [])
         self.assertEqual(privacy.value, "private")
 
+    def test_social_publish_status_reports_skipped_disabled_publish(self):
+        status = task._social_publish_status(
+            {
+                "auto_publish": False,
+                "requested_platforms": ["youtube"],
+                "enabled_platforms": [],
+                "skipped_platforms": [],
+                "skip_reason": "auto_publish_disabled",
+                "privacy": "private",
+            },
+            [],
+        )
+
+        self.assertEqual(status["status"], "skipped")
+        self.assertEqual(status["reason"], "auto_publish_disabled")
+        self.assertEqual(status["result_count"], 0)
+
+    def test_social_publish_status_reports_blocked_preflight(self):
+        status = task._social_publish_status(
+            {
+                "auto_publish": True,
+                "requested_platforms": ["youtube", "tiktok"],
+                "enabled_platforms": [],
+                "skipped_platforms": [
+                    {"platform": "youtube", "reason": "youtube_not_connected"}
+                ],
+                "skip_reason": "no_enabled_platforms",
+                "privacy": "private",
+            },
+            [],
+        )
+
+        self.assertEqual(status["status"], "blocked")
+        self.assertEqual(status["reason"], "no_enabled_platforms")
+        self.assertEqual(status["skipped_platforms"][0]["platform"], "youtube")
+
+    def test_social_publish_status_reports_upload_outcomes(self):
+        preflight = {
+            "auto_publish": True,
+            "requested_platforms": ["youtube", "tiktok"],
+            "enabled_platforms": ["youtube", "tiktok"],
+            "skipped_platforms": [],
+            "privacy": "private",
+        }
+
+        uploaded = task._social_publish_status(
+            preflight,
+            [
+                {"platform": "youtube", "success": True},
+                {"platform": "tiktok", "success": True},
+            ],
+        )
+        partial = task._social_publish_status(
+            preflight,
+            [
+                {"platform": "youtube", "success": True},
+                {"platform": "tiktok", "success": False},
+            ],
+        )
+        failed = task._social_publish_status(
+            preflight,
+            [
+                {"platform": "youtube", "success": False},
+                {"platform": "tiktok", "success": False},
+            ],
+        )
+
+        self.assertEqual(uploaded["status"], "uploaded")
+        self.assertEqual(uploaded["success_count"], 2)
+        self.assertEqual(partial["status"], "partial")
+        self.assertEqual(partial["reason"], "some_platforms_failed")
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["reason"], "all_platforms_failed")
+
     def test_news_concat_mode_preserves_source_media_order_by_default(self):
         params = VideoParams(
             video_subject="News",

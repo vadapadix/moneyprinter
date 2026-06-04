@@ -147,7 +147,7 @@ The same responses also include `news_media_summary`, a compact view of the medi
 
 `yt-dlp` search treats `Maximum number of downloads reached` as a successful stop condition and recovers downloaded video files from the task media directory. Raw `yt-dlp` extractor errors are routed through the app logger so unsupported article URLs do not appear as unstructured console failures.
 
-Final video rendering logs the BGM load, BGM mix, `write_videofile` start, and `write_videofile` completion. If a run appears to stop after `selected bgm`, the next log line now identifies whether it is stuck loading music, mixing audio, or writing the final MP4.
+Final video rendering logs the BGM load, BGM mix, `write_videofile` start, and `write_videofile` completion. The completion log includes the final MP4 size, and the render fails loudly if the output file is missing or empty. If a run appears to stop after `selected bgm`, the next log line now identifies whether it is stuck loading music, mixing audio, writing the final MP4, or validating the rendered file.
 
 Important events:
 

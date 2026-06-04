@@ -454,6 +454,10 @@ Compile and upload/TikTok regression tests were run together after the UI action
 
 Video rendering now logs BGM loading, BGM mixing, final `write_videofile` start, and final write completion.
 
+- [x] **Step 1.5: Validate final MP4 output**
+
+After MoviePy returns, rendering verifies that the final MP4 exists and has a non-zero size before reporting success.
+
 - [x] **Step 2: Recover downloaded files after yt-dlp max-download stop**
 
 When `yt-dlp` raises `Maximum number of downloads reached`, the news video search scans the save directory and records recovered video files instead of treating the target as failed.

@@ -104,6 +104,32 @@ class VideoBrandingTest(unittest.TestCase):
         self.assertEqual(captured["stroke_width"], 2)
         self.assertIsInstance(captured["font_size"], int)
 
+    def test_verify_output_video_file_returns_file_size(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as output:
+            output.write(b"video")
+            output_path = output.name
+
+        try:
+            self.assertEqual(video._verify_output_video_file(output_path), 5)
+        finally:
+            os.remove(output_path)
+
+    def test_verify_output_video_file_rejects_missing_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, "missing.mp4")
+            with self.assertRaisesRegex(RuntimeError, "was not written"):
+                video._verify_output_video_file(output_path)
+
+    def test_verify_output_video_file_rejects_empty_file(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as output:
+            output_path = output.name
+
+        try:
+            with self.assertRaisesRegex(RuntimeError, "is empty"):
+                video._verify_output_video_file(output_path)
+        finally:
+            os.remove(output_path)
+
 
 if __name__ == "__main__":
     unittest.main()

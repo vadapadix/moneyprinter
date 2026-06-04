@@ -392,6 +392,17 @@ def delete_files(files: List[str] | str):
             logger.debug(f"failed to delete file {file}: {str(e)}")
 
 
+def _verify_output_video_file(output_file: str) -> int:
+    if not os.path.isfile(output_file):
+        raise RuntimeError(f"final video was not written: {output_file}")
+
+    file_size = os.path.getsize(output_file)
+    if file_size <= 0:
+        raise RuntimeError(f"final video is empty: {output_file}")
+
+    return file_size
+
+
 def _resolve_bgm_file_path(song_dir: str, bgm_file: str) -> str:
     # 背景音乐只允许读取 resource/songs 目录内的文件，避免用户输入任意路径后
     # 被 MoviePy 打开。这里兼容两种常见输入：
@@ -971,7 +982,8 @@ def generate_video(
         logger=None,
         fps=fps,
     )
-    logger.info(f"finished writing final video: {output_file}")
+    output_size = _verify_output_video_file(output_file)
+    logger.info(f"finished writing final video: {output_file}, size={output_size} bytes")
     video_clip.close()
     del video_clip
 

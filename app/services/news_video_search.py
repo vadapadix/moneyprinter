@@ -143,6 +143,36 @@ def _is_relevant_entry(entry: dict, query: str) -> bool:
     return bool(_entry_relevance(entry, query)["is_relevant"])
 
 
+def _record_skipped_relevance(attempt: dict, entry: dict, relevance: dict) -> None:
+    attempt["skipped_irrelevant_count"] += 1
+    attempt["skipped_relevance"].append(
+        {
+            "title": str(entry.get("title") or "")[:160],
+            "matched_terms": relevance["matched_terms"],
+            "coverage": relevance["coverage"],
+            "required_overlap": relevance["required_overlap"],
+        }
+    )
+
+
+def _make_relevance_match_filter(query: str, attempt: dict):
+    def _filter(entry, *args, **kwargs):
+        entry = entry or {}
+        relevance = _entry_relevance(entry, query)
+        if relevance["is_relevant"]:
+            return None
+
+        _record_skipped_relevance(attempt, entry, relevance)
+        return (
+            "news relevance rejected: "
+            f"matched={','.join(relevance['matched_terms']) or 'none'}, "
+            f"coverage={relevance['coverage']}, "
+            f"required_overlap={relevance['required_overlap']}"
+        )
+
+    return _filter
+
+
 def _english_news_query(query: str) -> str:
     query = re.sub(r"\s+", " ", (query or "").strip())
     if not query:
@@ -360,19 +390,14 @@ def search_and_download_report(
                     "error": "",
                 }
                 try:
+                    if not hasattr(ydl, "params") or not isinstance(ydl.params, dict):
+                        ydl.params = ydl_opts
+                    ydl.params["match_filter"] = _make_relevance_match_filter(query, attempt)
                     info = ydl.extract_info(target, download=True)
                     for entry in _iter_entries(info):
                         relevance = _entry_relevance(entry, query)
                         if not relevance["is_relevant"]:
-                            attempt["skipped_irrelevant_count"] += 1
-                            attempt["skipped_relevance"].append(
-                                {
-                                    "title": str(entry.get("title") or "")[:160],
-                                    "matched_terms": relevance["matched_terms"],
-                                    "coverage": relevance["coverage"],
-                                    "required_overlap": relevance["required_overlap"],
-                                }
-                            )
+                            _record_skipped_relevance(attempt, entry, relevance)
                             continue
                         path = _downloaded_path(ydl, entry)
                         if path and os.path.isfile(path) and path not in downloaded:

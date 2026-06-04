@@ -361,6 +361,53 @@ class NewsVideoSearchTest(unittest.TestCase):
         self.assertEqual(result.attempts[0]["skipped_relevance"][0]["matched_terms"], ["market"])
         self.assertEqual(result.attempts[0]["skipped_relevance"][0]["required_overlap"], 2)
 
+    def test_max_download_recovery_uses_relevance_filter_before_download(self):
+        class FilteringMaxDownloadsYoutubeDL(FakeYoutubeDL):
+            def __init__(self, options):
+                super().__init__(options)
+                self.params = options
+
+            def extract_info(self, target, download=True):
+                dirname = os.path.dirname(self.options["outtmpl"])
+                skipped = {
+                    "title": "cooking show recap",
+                    "webpage_url": "https://youtube.example/wrong",
+                }
+                accepted = {
+                    "title": "major news headline official footage",
+                    "webpage_url": "https://youtube.example/right",
+                }
+
+                assert self.params["match_filter"](skipped) is not None
+                assert self.params["match_filter"](accepted) is None
+
+                path = os.path.join(dirname, "major-news-headline-footage.mp4")
+                with open(path, "wb") as handle:
+                    handle.write(b"video")
+                raise Exception("Maximum number of downloads reached")
+
+        fake_module = types.SimpleNamespace(YoutubeDL=FilteringMaxDownloadsYoutubeDL)
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            result = news_video_search.search_and_download_report(
+                "major news headline",
+                save_dir=temp_dir,
+                limit=1,
+            )
+
+        self.assertEqual(len(result.paths), 1)
+        self.assertTrue(result.paths[0].endswith("major-news-headline-footage.mp4"))
+        self.assertEqual(result.attempts[0]["skipped_irrelevant_count"], 1)
+        self.assertEqual(
+            result.attempts[0]["skipped_relevance"][0]["title"],
+            "cooking show recap",
+        )
+        self.assertEqual(
+            result.attempts[0]["accepted_relevance"][0]["recovered_after"],
+            "max_downloads",
+        )
+
     def test_search_report_tries_web_video_pages_when_enabled(self):
         calls = []
 

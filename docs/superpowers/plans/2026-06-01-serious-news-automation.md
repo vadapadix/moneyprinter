@@ -490,6 +490,10 @@ When the LLM metadata response is unavailable or invalid, fallback metadata now 
 
 Completed tasks now include `publish_status`, summarizing whether auto-publish was skipped, blocked by preflight, uploaded, partially uploaded, or failed across all configured platforms.
 
+- [x] **Step 3.6: Gate yt-dlp max-download recovery by headline relevance**
+
+`yt-dlp` now applies the same headline relevance filter before downloading candidates, so files recovered after `Maximum number of downloads reached` are not arbitrary first results from YouTube/web search.
+
 - [x] **Step 4: Stabilize config-dependent preflight test**
 
 The TikTok direct-post preflight test now fixes `tiktok_publish_mode = "api"` so local browser-assist config does not change the expected skip reason.

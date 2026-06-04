@@ -70,11 +70,23 @@ def discover_related_telegram_video_materials(
 
 
 def build_source_context(story: NewsStory) -> dict:
+    source_urls = []
+    for url in [
+        story.url,
+        *web_media.extract_urls(story.summary),
+        *[asset.source_url for asset in story.media],
+        *[asset.url for asset in story.media],
+    ]:
+        cleaned = (url or "").strip()
+        if cleaned and cleaned not in source_urls:
+            source_urls.append(cleaned)
+
     return {
         "provider": story.provider,
         "title": story.title,
         "summary": story.summary,
         "source_url": story.url,
+        "source_urls": source_urls,
         "published_at": story.published_at,
         "language": story.language,
         "country": story.country,

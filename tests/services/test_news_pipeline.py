@@ -103,7 +103,15 @@ class NewsPipelineTest(unittest.TestCase):
             ],
         )
 
-        with mock.patch.object(news_pipeline.news_sources, "search", return_value=[story]):
+        with mock.patch.object(
+            news_pipeline.news_sources,
+            "search",
+            return_value=[story],
+        ), mock.patch.object(
+            news_pipeline.web_media,
+            "discover_story_media",
+            return_value=[],
+        ):
             result = news_pipeline.prepare_news_context(params)
 
         self.assertIs(result, story)
@@ -113,6 +121,34 @@ class NewsPipelineTest(unittest.TestCase):
         self.assertEqual(params.video_script, "")
         self.assertEqual(params.news_source_context["source_url"], "https://news.example/story")
         self.assertEqual(params.news_media_assets[0]["url"], "https://news.example/clip.mp4")
+
+    def test_build_source_context_collects_related_urls(self):
+        story = NewsStory(
+            provider="telethon",
+            title="Story",
+            summary="Read https://news.example/story and watch https://youtu.be/abc123",
+            url="https://t.me/demo/1",
+            media=[
+                NewsMediaAsset(
+                    provider="web",
+                    url="https://cdn.example.com/clip.mp4",
+                    media_type="video",
+                    source_url="https://news.example/story",
+                )
+            ],
+        )
+
+        context = news_pipeline.build_source_context(story)
+
+        self.assertEqual(
+            context["source_urls"],
+            [
+                "https://t.me/demo/1",
+                "https://news.example/story",
+                "https://youtu.be/abc123",
+                "https://cdn.example.com/clip.mp4",
+            ],
+        )
 
     def test_prepare_news_context_reuses_existing_context(self):
         params = VideoParams(
@@ -127,7 +163,14 @@ class NewsPipelineTest(unittest.TestCase):
             },
         )
 
-        with mock.patch.object(news_pipeline.news_sources, "search") as search_mock:
+        with mock.patch.object(
+            news_pipeline.news_sources,
+            "search",
+        ) as search_mock, mock.patch.object(
+            news_pipeline.web_media,
+            "discover_story_media",
+            return_value=[],
+        ):
             story = news_pipeline.prepare_news_context(params)
 
         search_mock.assert_not_called()

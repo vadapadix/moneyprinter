@@ -119,6 +119,55 @@ class NewsVideoSearchTest(unittest.TestCase):
         self.assertTrue(captured["options"]["targets"][0].startswith("ytsearch"))
         self.assertEqual(result.attempts[0]["kind"], "youtube_search")
 
+    def test_search_and_download_report_tries_multiple_direct_source_urls(self):
+        fake_module = types.SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+        captured = {}
+
+        class CapturingYoutubeDL(FakeYoutubeDL):
+            def __init__(self, options):
+                super().__init__(options)
+                captured["options"] = options
+
+            def extract_info(self, target, download=True):
+                self.options.setdefault("targets", []).append(target)
+                dirname = os.path.dirname(self.options["outtmpl"])
+                filename = f"downloaded-{len(self.options['targets'])}.mp4"
+                path = os.path.join(dirname, filename)
+                with open(path, "wb") as handle:
+                    handle.write(b"video")
+                return {
+                    "title": "major news headline footage",
+                    "requested_downloads": [{"filepath": path}],
+                }
+
+        fake_module.YoutubeDL = CapturingYoutubeDL
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            result = news_video_search.search_and_download_report(
+                "major news headline",
+                save_dir=temp_dir,
+                limit=2,
+                source_context={
+                    "source_url": "https://www.theguardian.com/world/story",
+                    "source_urls": [
+                        "https://www.theguardian.com/world/story",
+                        "https://youtu.be/abc123",
+                        "https://cdn.example.com/clip.mp4",
+                    ],
+                },
+            )
+
+        self.assertEqual(len(result.paths), 2)
+        self.assertEqual(
+            captured["options"]["targets"][:2],
+            ["https://youtu.be/abc123", "https://cdn.example.com/clip.mp4"],
+        )
+        self.assertEqual(
+            [attempt["kind"] for attempt in result.attempts[:2]],
+            ["source_url", "source_url"],
+        )
+
     def test_search_and_download_returns_empty_without_dependency(self):
         with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
             news_video_search.importlib,

@@ -478,6 +478,10 @@ Source URLs from plain article pages are kept as story context, but only direct 
 
 Web media discovery now uses a shorter dedicated search timeout and stops additional web-search variants after provider-level timeout/failure. Headline-based YouTube `yt-dlp` targets are still generated, so a slow DuckDuckGo path no longer stalls the rest of automation.
 
+- [x] **Step 3.3: Carry multiple source URLs into deep search**
+
+News source context now includes a deduplicated `source_urls` list from the story URL, summary links, media source URLs, and media URLs. The `yt-dlp` target builder tries all direct video/social URLs from that list before headline-based searches.
+
 - [x] **Step 4: Stabilize config-dependent preflight test**
 
 The TikTok direct-post preflight test now fixes `tiktok_publish_mode = "api"` so local browser-assist config does not change the expected skip reason.

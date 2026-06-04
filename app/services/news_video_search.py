@@ -218,12 +218,24 @@ def _is_ytdlp_direct_candidate_url(url: str) -> bool:
 def _candidate_targets(query: str, limit: int, source_context: dict | None = None) -> list[dict]:
     source_context = source_context or {}
     targets = []
-    source_url = str(source_context.get("source_url") or "").strip()
-    if source_url and config.app.get("news_ytdlp_try_source_url", True):
-        if _is_ytdlp_direct_candidate_url(source_url):
-            targets.append({"kind": "source_url", "query": source_url, "target": source_url})
-        else:
-            logger.debug(f"skipping non-video source URL for yt-dlp: {source_url}")
+    source_urls = [
+        str(source_context.get("source_url") or "").strip(),
+        *[
+            str(url or "").strip()
+            for url in source_context.get("source_urls", [])
+            if str(url or "").strip()
+        ],
+    ]
+    seen_source_urls = set()
+    if config.app.get("news_ytdlp_try_source_url", True):
+        for source_url in source_urls:
+            if not source_url or source_url in seen_source_urls:
+                continue
+            seen_source_urls.add(source_url)
+            if _is_ytdlp_direct_candidate_url(source_url):
+                targets.append({"kind": "source_url", "query": source_url, "target": source_url})
+            else:
+                logger.debug(f"skipping non-video source URL for yt-dlp: {source_url}")
 
     try:
         overfetch_multiplier = max(

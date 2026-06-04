@@ -458,6 +458,10 @@ Video rendering now logs BGM loading, BGM mixing, final `write_videofile` start,
 
 After MoviePy returns, rendering verifies that the final MP4 exists and has a non-zero size before reporting success.
 
+- [x] **Step 1.6: Add final render progress heartbeat**
+
+MoviePy final rendering now emits throttled progress logs during `write_videofile`, so long news renders no longer look silent after BGM selection.
+
 - [x] **Step 2: Recover downloaded files after yt-dlp max-download stop**
 
 When `yt-dlp` raises `Maximum number of downloads reached`, the news video search scans the save directory and records recovered video files instead of treating the target as failed.

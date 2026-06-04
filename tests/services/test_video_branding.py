@@ -130,6 +130,32 @@ class VideoBrandingTest(unittest.TestCase):
         finally:
             os.remove(output_path)
 
+    def test_moviepy_render_logger_reports_progress_without_spam(self):
+        render_logger = video._MoviePyRenderLogger(
+            "final.mp4",
+            min_interval_seconds=999,
+        )
+
+        with mock.patch.object(video.logger, "info") as info_mock:
+            render_logger(frame__total=100)
+            render_logger(frame__index=0)
+            render_logger(frame__index=1)
+            render_logger(frame__index=100)
+
+        self.assertEqual(info_mock.call_count, 2)
+        self.assertIn("progress=0/100 (0.0%)", info_mock.call_args_list[0].args[0])
+        self.assertIn("progress=100/100 (100.0%)", info_mock.call_args_list[1].args[0])
+
+    def test_moviepy_render_logger_uses_configured_interval(self):
+        with mock.patch.dict(
+            "app.services.video.config.app",
+            {"moviepy_render_progress_interval_seconds": "2.5"},
+            clear=False,
+        ):
+            render_logger = video._moviepy_render_logger("final.mp4")
+
+        self.assertEqual(render_logger.min_interval_seconds, 2.5)
+
 
 if __name__ == "__main__":
     unittest.main()

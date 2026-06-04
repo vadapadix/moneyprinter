@@ -7,6 +7,7 @@ import random
 import gc
 import shutil
 import subprocess
+import time
 from contextlib import redirect_stdout
 from typing import Any, Dict, List, Optional
 from loguru import logger
@@ -22,6 +23,7 @@ from moviepy import (
 )
 from moviepy.video.tools.subtitles import SubtitlesClip
 from PIL import Image, ImageFont
+from proglog import ProgressBarLogger
 
 from app.config import config
 from app.models import const
@@ -401,6 +403,47 @@ def _verify_output_video_file(output_file: str) -> int:
         raise RuntimeError(f"final video is empty: {output_file}")
 
     return file_size
+
+
+class _MoviePyRenderLogger(ProgressBarLogger):
+    def __init__(self, output_file: str, min_interval_seconds: float = 15.0):
+        super().__init__(logged_bars=False)
+        self.output_file = output_file
+        self.min_interval_seconds = max(0.0, min_interval_seconds)
+        self._last_logged_at: dict[str, float] = {}
+
+    def bars_callback(self, bar, attr, value, old_value=None):
+        if attr != "index" or old_value == value:
+            return
+
+        bar_state = self.bars.get(bar, {})
+        total = bar_state.get("total")
+        now = time.monotonic()
+        done = isinstance(total, (int, float)) and total > 0 and value >= total
+        last_logged_at = self._last_logged_at.get(bar, 0.0)
+        if value > 0 and not done and now - last_logged_at < self.min_interval_seconds:
+            return
+
+        self._last_logged_at[bar] = now
+        if isinstance(total, (int, float)) and total > 0:
+            percent = min(100.0, max(0.0, (float(value) / float(total)) * 100.0))
+            logger.info(
+                f"rendering final video: {self.output_file}, "
+                f"stage={bar}, progress={value}/{total} ({percent:.1f}%)"
+            )
+        else:
+            logger.info(
+                f"rendering final video: {self.output_file}, "
+                f"stage={bar}, progress={value}"
+            )
+
+
+def _moviepy_render_logger(output_file: str) -> _MoviePyRenderLogger:
+    try:
+        interval = float(config.app.get("moviepy_render_progress_interval_seconds", 15))
+    except (TypeError, ValueError):
+        interval = 15.0
+    return _MoviePyRenderLogger(output_file, min_interval_seconds=interval)
 
 
 def _resolve_bgm_file_path(song_dir: str, bgm_file: str) -> str:
@@ -972,20 +1015,22 @@ def generate_video(
         f"output={output_file}, duration={video_clip.duration:.2f}s, "
         f"fps={fps}, audio_fps={output_audio_fps}, threads={params.n_threads or 2}"
     )
-    video_clip.write_videofile(
-        output_file,
-        audio_codec=audio_codec,
-        audio_fps=output_audio_fps,
-        audio_bitrate=audio_bitrate,
-        temp_audiofile_path=output_dir,
-        threads=params.n_threads or 2,
-        logger=None,
-        fps=fps,
-    )
-    output_size = _verify_output_video_file(output_file)
-    logger.info(f"finished writing final video: {output_file}, size={output_size} bytes")
-    video_clip.close()
-    del video_clip
+    try:
+        video_clip.write_videofile(
+            output_file,
+            audio_codec=audio_codec,
+            audio_fps=output_audio_fps,
+            audio_bitrate=audio_bitrate,
+            temp_audiofile_path=output_dir,
+            threads=params.n_threads or 2,
+            logger=_moviepy_render_logger(output_file),
+            fps=fps,
+        )
+        output_size = _verify_output_video_file(output_file)
+        logger.info(f"finished writing final video: {output_file}, size={output_size} bytes")
+    finally:
+        video_clip.close()
+        del video_clip
 
 
 def preprocess_video(materials: List[MaterialInfo], clip_duration=4):

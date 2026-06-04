@@ -83,12 +83,41 @@ class NewsVideoSearchTest(unittest.TestCase):
                 "major news headline",
                 save_dir=temp_dir,
                 limit=1,
-                source_context={"source_url": "https://news.example/story"},
+                source_context={"source_url": "https://www.youtube.com/watch?v=abc123"},
             )
 
         self.assertEqual(result.paths[0].split(os.sep)[-1], "downloaded-news-video.mp4")
-        self.assertEqual(captured["options"]["targets"][0], "https://news.example/story")
+        self.assertEqual(
+            captured["options"]["targets"][0],
+            "https://www.youtube.com/watch?v=abc123",
+        )
         self.assertEqual(result.attempts[0]["kind"], "source_url")
+
+    def test_search_and_download_report_skips_plain_article_source_url(self):
+        fake_module = types.SimpleNamespace(YoutubeDL=FakeYoutubeDL)
+        captured = {}
+
+        class CapturingYoutubeDL(FakeYoutubeDL):
+            def __init__(self, options):
+                super().__init__(options)
+                captured["options"] = options
+
+        fake_module.YoutubeDL = CapturingYoutubeDL
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            result = news_video_search.search_and_download_report(
+                "major news headline",
+                save_dir=temp_dir,
+                limit=1,
+                source_context={
+                    "source_url": "https://www.theguardian.com/sport/2026/feb/20/story"
+                },
+            )
+
+        self.assertTrue(result.paths[0].endswith("downloaded-news-video.mp4"))
+        self.assertTrue(captured["options"]["targets"][0].startswith("ytsearch"))
+        self.assertEqual(result.attempts[0]["kind"], "youtube_search")
 
     def test_search_and_download_returns_empty_without_dependency(self):
         with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(

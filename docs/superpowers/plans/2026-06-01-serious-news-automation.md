@@ -470,6 +470,10 @@ When `yt-dlp` raises `Maximum number of downloads reached`, the news video searc
 
 Unsupported source article URLs are captured by a custom yt-dlp logger instead of printing raw console `ERROR:` lines.
 
+- [x] **Step 3.1: Skip plain article URLs as direct yt-dlp targets**
+
+Source URLs from plain article pages are kept as story context, but only direct video files and known video/social pages are sent directly to `yt-dlp`. Guardian-style article URLs now move straight to headline-based video search without an unsupported URL attempt.
+
 - [x] **Step 4: Stabilize config-dependent preflight test**
 
 The TikTok direct-post preflight test now fixes `tiktok_publish_mode = "api"` so local browser-assist config does not change the expected skip reason.

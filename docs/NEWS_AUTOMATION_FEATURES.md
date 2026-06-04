@@ -145,7 +145,7 @@ The same responses also include `news_media_summary`, a compact view of the medi
 - `used_sources`: sources that actually supplied clips.
 - `stages`: per-stage requested/downloaded counts, paths, `yt-dlp` attempt count, and skipped relevance count.
 
-`yt-dlp` search treats `Maximum number of downloads reached` as a successful stop condition and recovers downloaded video files from the task media directory. Raw `yt-dlp` extractor errors are routed through the app logger so unsupported article URLs do not appear as unstructured console failures.
+`yt-dlp` search treats `Maximum number of downloads reached` as a successful stop condition and recovers downloaded video files from the task media directory. Plain article URLs are not sent to `yt-dlp` as direct download targets unless they are direct video files or known video/social pages, so sources like Guardian articles are used as search context instead of producing `Unsupported URL` noise. Raw `yt-dlp` extractor errors are routed through the app logger so unsupported article URLs do not appear as unstructured console failures.
 
 Final video rendering logs the BGM load, BGM mix, `write_videofile` start, periodic MoviePy progress, and `write_videofile` completion. The completion log includes the final MP4 size, and the render fails loudly if the output file is missing or empty. If a run appears to stop after `selected bgm`, the next log line now identifies whether it is stuck loading music, mixing audio, writing the final MP4, or validating the rendered file. The progress interval can be tuned with `moviepy_render_progress_interval_seconds`.
 

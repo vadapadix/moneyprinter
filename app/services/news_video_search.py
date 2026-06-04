@@ -2,11 +2,13 @@ import importlib
 import os
 import re
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 from loguru import logger
 
 from app.config import config
 from app.services import web_media
+from app.services.news_sources.base import is_direct_video_url
 from app.utils import utils
 
 
@@ -185,12 +187,43 @@ def _query_variants(query: str, source_context: dict | None = None) -> list[str]
     return variants
 
 
+def _is_ytdlp_direct_candidate_url(url: str) -> bool:
+    if not url:
+        return False
+    if is_direct_video_url(url):
+        return True
+
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    video_hosts = (
+        "youtube.com",
+        "youtu.be",
+        "tiktok.com",
+        "instagram.com",
+        "facebook.com",
+        "fb.watch",
+        "twitter.com",
+        "x.com",
+        "vimeo.com",
+        "dailymotion.com",
+        "twitch.tv",
+        "rumble.com",
+        "streamable.com",
+        "telegram.org",
+        "t.me",
+    )
+    return any(host == candidate or host.endswith(f".{candidate}") for candidate in video_hosts)
+
+
 def _candidate_targets(query: str, limit: int, source_context: dict | None = None) -> list[dict]:
     source_context = source_context or {}
     targets = []
     source_url = str(source_context.get("source_url") or "").strip()
     if source_url and config.app.get("news_ytdlp_try_source_url", True):
-        targets.append({"kind": "source_url", "query": source_url, "target": source_url})
+        if _is_ytdlp_direct_candidate_url(source_url):
+            targets.append({"kind": "source_url", "query": source_url, "target": source_url})
+        else:
+            logger.debug(f"skipping non-video source URL for yt-dlp: {source_url}")
 
     try:
         overfetch_multiplier = max(

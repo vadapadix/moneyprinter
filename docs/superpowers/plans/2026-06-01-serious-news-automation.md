@@ -482,6 +482,10 @@ Web media discovery now uses a shorter dedicated search timeout and stops additi
 
 News source context now includes a deduplicated `source_urls` list from the story URL, summary links, media source URLs, and media URLs. The `yt-dlp` target builder tries all direct video/social URLs from that list before headline-based searches.
 
+- [x] **Step 3.4: Make metadata fallback source-aware**
+
+When the LLM metadata response is unavailable or invalid, fallback metadata now uses the source headline, summary, source URL, keywords, and video terms to produce publish-ready title, description, hashtags, YouTube tags, and captions.
+
 - [x] **Step 4: Stabilize config-dependent preflight test**
 
 The TikTok direct-post preflight test now fixes `tiktok_publish_mode = "api"` so local browser-assist config does not change the expected skip reason.

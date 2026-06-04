@@ -94,6 +94,53 @@ class SocialMetadataTest(unittest.TestCase):
         self.assertIn("#Shorts", result.description)
         self.assertEqual(result.platform_captions["tiktok"], "A concise update #News")
 
+    def test_error_response_fallback_uses_source_context(self):
+        with mock.patch.object(
+            social_metadata.llm,
+            "_generate_response",
+            return_value="Error: quota exceeded",
+        ):
+            result = social_metadata.generate_social_metadata(
+                video_subject="Long generation prompt",
+                video_script="Story script",
+                video_terms=["ice hockey"],
+                source_context={
+                    "title": "USA and Canada to meet in Olympic hockey final",
+                    "summary": "The two teams will play for gold after winning their semifinals.",
+                    "source_url": "https://example.com/hockey-final",
+                    "keywords": ["Olympics", "Hockey"],
+                },
+            )
+
+        self.assertEqual(result.title, "USA and Canada to meet in Olympic hockey final")
+        self.assertIn("The two teams will play for gold", result.description)
+        self.assertIn("Source: https://example.com/hockey-final", result.description)
+        self.assertIn("#Shorts", result.description)
+        self.assertIn("Olympics", result.youtube_tags)
+        self.assertIn("ice hockey", result.youtube_tags)
+        self.assertIn("#Hockey", result.hashtags)
+        self.assertTrue(result.platform_captions["tiktok"].startswith("USA and Canada"))
+
+    def test_invalid_json_fallback_uses_default_title_before_prompt(self):
+        with mock.patch.object(
+            social_metadata.llm,
+            "_generate_response",
+            return_value="not json",
+        ):
+            result = social_metadata.generate_social_metadata(
+                video_subject="Write a short factual news voiceover in English...",
+                video_terms=["markets"],
+                default_title="Central bank announces rate decision",
+                source_context={
+                    "title": "Source title",
+                    "summary": "Officials announced a new decision.",
+                },
+            )
+
+        self.assertEqual(result.title, "Central bank announces rate decision")
+        self.assertNotEqual(result.title.lower(), "unknown")
+        self.assertIn("Officials announced a new decision.", result.description)
+
 
 if __name__ == "__main__":
     unittest.main()

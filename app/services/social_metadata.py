@@ -52,6 +52,42 @@ def _select_title(title: str, default_title: str = "") -> str:
     return "Generated short video"
 
 
+def _source_title(source_context: dict | None) -> str:
+    if not isinstance(source_context, dict):
+        return ""
+    return str(source_context.get("title") or "").strip()
+
+
+def _source_summary(source_context: dict | None) -> str:
+    if not isinstance(source_context, dict):
+        return ""
+    return str(source_context.get("summary") or "").strip()
+
+
+def _source_url(source_context: dict | None) -> str:
+    if not isinstance(source_context, dict):
+        return ""
+    return str(source_context.get("source_url") or "").strip()
+
+
+def _source_keywords(source_context: dict | None) -> list[str]:
+    if not isinstance(source_context, dict):
+        return []
+    return [
+        str(keyword).strip()
+        for keyword in source_context.get("keywords") or []
+        if str(keyword).strip()
+    ]
+
+
+def _plain_tags_from_title(title: str, limit: int = 6) -> list[str]:
+    return [
+        token.title()
+        for token in re.findall(r"[A-Za-z][A-Za-z0-9]{2,}", title or "")
+        if token.lower() not in {"the", "and", "for", "with", "from", "this", "that"}
+    ][:limit]
+
+
 def normalize_metadata(metadata: SocialMetadata, default_title: str = "") -> SocialMetadata:
     title = _select_title(metadata.title, default_title)
     if len(title) > 95:
@@ -108,6 +144,53 @@ def fallback_metadata(
     return normalize_metadata(metadata, default_title=default_title or video_subject)
 
 
+def fallback_metadata_from_context(
+    video_subject: str,
+    video_terms=None,
+    default_title: str = "",
+    source_context: dict | None = None,
+) -> SocialMetadata:
+    terms = video_terms or []
+    if isinstance(terms, str):
+        terms = re.split(r"[,пјЊ]", terms)
+
+    title = _select_title(default_title, _source_title(source_context) or video_subject)
+    summary = _source_summary(source_context)
+    source_url = _source_url(source_context)
+    keywords = _source_keywords(source_context)
+    clean_terms = [str(term).strip() for term in terms if str(term).strip()]
+    tag_terms = _unique_strings(
+        [*clean_terms, *keywords, *_plain_tags_from_title(title), "News", "Shorts"],
+        15,
+    )
+    hashtags = [_normalize_hashtag(term) for term in tag_terms]
+    description_parts = [summary or title]
+    if source_url:
+        description_parts.append(f"Source: {source_url}")
+    description = "\n\n".join(part for part in description_parts if part)
+
+    metadata = SocialMetadata(
+        title=title,
+        description=description,
+        hashtags=[tag for tag in hashtags if tag],
+        youtube_tags=[tag.lstrip("#") for tag in tag_terms],
+        platform_captions={
+            "tiktok": " ".join(
+                [
+                    title,
+                    *[
+                        tag
+                        for tag in hashtags
+                        if tag and tag.lower() not in {"#shorts"}
+                    ][:6],
+                ]
+            ).strip(),
+            "youtube": description,
+        },
+    )
+    return normalize_metadata(metadata, default_title=title)
+
+
 def _extract_json_object(response: str) -> dict:
     try:
         return json.loads(response)
@@ -160,7 +243,12 @@ script: {video_script}
     response = llm._generate_response(prompt)
     if not response or "Error: " in response:
         logger.warning(f"failed to generate social metadata, using fallback: {response}")
-        return fallback_metadata(video_subject, video_terms, default_title=default_title)
+        return fallback_metadata_from_context(
+            video_subject,
+            video_terms,
+            default_title=default_title,
+            source_context=source_context,
+        )
 
     try:
         payload = _extract_json_object(response)
@@ -168,4 +256,9 @@ script: {video_script}
         return normalize_metadata(metadata, default_title=default_title or video_subject)
     except Exception as exc:
         logger.warning(f"invalid social metadata response, using fallback: {str(exc)}")
-        return fallback_metadata(video_subject, video_terms, default_title=default_title)
+        return fallback_metadata_from_context(
+            video_subject,
+            video_terms,
+            default_title=default_title,
+            source_context=source_context,
+        )

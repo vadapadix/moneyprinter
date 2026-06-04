@@ -149,6 +149,8 @@ The same responses also include `news_media_summary`, a compact view of the medi
 
 News source context now carries a deduplicated `source_urls` list built from the story URL, URLs embedded in the summary, media source URLs, and media URLs. Deep search can therefore try multiple real video/social URLs for the same story before falling back to headline-based YouTube searches.
 
+Social metadata fallback is source-aware. If the LLM returns an error or invalid JSON, upload metadata is rebuilt from the source headline, summary, source URL, keywords, and video terms instead of falling back to `unknown` or a long generation prompt.
+
 Web video discovery uses a shorter, dedicated search timeout (`news_web_search_connect_timeout` and `news_web_search_timeout`) and stops trying additional search-query variants after a provider-level timeout. This keeps automation moving to Telegram, `yt-dlp`, and stock fallbacks instead of waiting on repeated DuckDuckGo failures for the same story.
 
 Final video rendering logs the BGM load, BGM mix, `write_videofile` start, periodic MoviePy progress, and `write_videofile` completion. The completion log includes the final MP4 size, and the render fails loudly if the output file is missing or empty. If a run appears to stop after `selected bgm`, the next log line now identifies whether it is stuck loading music, mixing audio, writing the final MP4, or validating the rendered file. The progress interval can be tuned with `moviepy_render_progress_interval_seconds`.

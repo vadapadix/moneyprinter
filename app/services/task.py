@@ -68,12 +68,15 @@ def generate_terms(task_id, params, video_script):
     logger.info("\n\n## generating video terms")
     video_terms = params.video_terms
     if not video_terms:
-        video_terms = llm.generate_terms(
-            video_subject=params.video_subject, video_script=video_script, amount=5
-        )
-        if isinstance(video_terms, str) and video_terms.startswith("Error: "):
-            logger.warning("falling back to local search terms after LLM terms failure")
+        if params.video_source == "news":
             video_terms = _fallback_search_terms(params, video_script)
+        else:
+            video_terms = llm.generate_terms(
+                video_subject=params.video_subject, video_script=video_script, amount=5
+            )
+            if isinstance(video_terms, str) and video_terms.startswith("Error: "):
+                logger.warning("falling back to local search terms after LLM terms failure")
+                video_terms = _fallback_search_terms(params, video_script)
     else:
         if isinstance(video_terms, str):
             video_terms = [term.strip() for term in re.split(r"[,，]", video_terms)]
@@ -93,10 +96,17 @@ def generate_terms(task_id, params, video_script):
 
 
 def _fallback_search_terms(params, video_script: str, amount: int = 5) -> list[str]:
+    source_context = getattr(params, "news_source_context", None) or {}
+    keywords = " ".join(source_context.get("keywords") or [])
     source = " ".join(
         [
+            str(source_context.get("title", "") or ""),
+            keywords,
             str(getattr(params, "news_query", "") or ""),
-            str(getattr(params, "video_subject", "") or ""),
+            str(source_context.get("summary", "") or ""),
+            str(getattr(params, "video_subject", "") or "")
+            if getattr(params, "video_source", "") != "news"
+            else "",
             video_script or "",
         ]
     )
@@ -149,6 +159,11 @@ def _fallback_search_terms(params, video_script: str, amount: int = 5) -> list[s
     words = [word for word in words if word not in stop_words]
 
     terms = []
+    title = str(source_context.get("title", "") or "").strip()
+    if title:
+        terms.append(title)
+    terms.extend(source_context.get("keywords") or [])
+
     proper_phrases = re.findall(r"\b[A-Z][A-Za-z0-9'-]*(?:\s+[A-Z][A-Za-z0-9'-]*){0,2}", source)
     for phrase in proper_phrases:
         cleaned = " ".join(phrase.split())
@@ -265,6 +280,13 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         if not os.path.exists(subtitle_path):
             subtitle_fallback = True
             logger.warning("subtitle file not found, fallback to whisper")
+
+    whisper_fallback_enabled = bool(
+        config.app.get("subtitle_whisper_fallback_enabled", False)
+    )
+    if subtitle_fallback and not whisper_fallback_enabled:
+        logger.warning("whisper subtitle fallback is disabled, continuing without subtitles")
+        return ""
 
     if subtitle_provider == "whisper" or subtitle_fallback:
         subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)

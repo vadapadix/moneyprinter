@@ -233,6 +233,72 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("Flights were delayed", script)
         self.assertNotIn("Error:", script)
 
+    def test_generate_news_script_fallback_uses_article_details_without_marker(self):
+        with (
+            patch.dict(
+                "app.services.llm.config.app",
+                {"news_script_min_words": 30, "news_script_max_words": 45},
+                clear=False,
+            ),
+            patch.object(llm, "_generate_response", return_value="Error: quota exceeded"),
+        ):
+            script = llm.generate_news_script(
+                video_subject="Fallback subject",
+                source_context={
+                    "title": "U.S. sanctions Cuban president",
+                    "summary": (
+                        "Short wire summary with a damaged name D?az. Article details: "
+                        "The United States imposed sanctions on Cuban President Miguel Díaz-Canel, "
+                        "his wife, and other listed individuals."
+                    ),
+                    "source_url": "https://example.com/cuba",
+                },
+            )
+
+        self.assertIn("Miguel Díaz-Canel", script)
+        self.assertNotIn("Article details", script)
+        self.assertNotIn("D?az", script)
+
+    def test_generate_news_script_retries_when_source_rich_draft_is_too_short(self):
+        short_response = "The U.S. sanctioned Cuba's president and several relatives."
+        expanded_response = (
+            "The United States has imposed sanctions on Cuban President Miguel Díaz-Canel, "
+            "his wife Lis Cuesta Peraza, his stepson Miguel Anido Cuesta, Alejandro Castro "
+            "Espín, and Raúl Alejandro Castro Calis. A Treasury Department filing listed "
+            "the sanctions, which freeze property and bank accounts in the United States. "
+            "The move is part of the Trump administration's pressure campaign against Cuba's leadership."
+        )
+        source_summary = " ".join(
+            [
+                "The Treasury filing listed sanctions against Cuban leaders and relatives."
+                for _ in range(12)
+            ]
+        )
+
+        with (
+            patch.dict(
+                "app.services.llm.config.app",
+                {"news_script_min_words": 45, "news_script_max_words": 90},
+                clear=False,
+            ),
+            patch.object(
+                llm,
+                "_generate_response",
+                side_effect=[short_response, expanded_response],
+            ) as generate_mock,
+        ):
+            script = llm.generate_news_script(
+                video_subject="U.S. sanctions Cuban president",
+                source_context={
+                    "title": "U.S. sanctions Cuban president",
+                    "summary": source_summary,
+                    "source_url": "https://example.com/cuba",
+                },
+            )
+
+        self.assertEqual(generate_mock.call_count, 2)
+        self.assertIn("Miguel Díaz-Canel", script)
+        self.assertGreaterEqual(len(script.split()), 45)
 
     def test_azure_provider_uses_azure_client_directly(self):
         """

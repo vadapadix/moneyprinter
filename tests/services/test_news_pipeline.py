@@ -111,6 +111,10 @@ class NewsPipelineTest(unittest.TestCase):
             news_pipeline.web_media,
             "discover_story_media",
             return_value=[],
+        ), mock.patch.object(
+            news_pipeline.news_article,
+            "fetch_article_text",
+            return_value="The full article says traders reacted to new inflation data.",
         ):
             result = news_pipeline.prepare_news_context(params)
 
@@ -118,8 +122,10 @@ class NewsPipelineTest(unittest.TestCase):
         self.assertIn("Write a short factual news voiceover in English", params.video_subject)
         self.assertIn("Market update", params.video_subject)
         self.assertIn("Stocks moved today", params.video_subject)
+        self.assertIn("The full article says traders reacted", params.video_subject)
         self.assertEqual(params.video_script, "")
         self.assertEqual(params.news_source_context["source_url"], "https://news.example/story")
+        self.assertIn("Article details:", params.news_source_context["summary"])
         self.assertEqual(params.news_media_assets[0]["url"], "https://news.example/clip.mp4")
 
     def test_build_source_context_collects_related_urls(self):
@@ -170,6 +176,10 @@ class NewsPipelineTest(unittest.TestCase):
             news_pipeline.web_media,
             "discover_story_media",
             return_value=[],
+        ), mock.patch.object(
+            news_pipeline.news_article,
+            "fetch_article_text",
+            return_value="The selected article adds verified timeline details.",
         ):
             story = news_pipeline.prepare_news_context(params)
 
@@ -177,7 +187,27 @@ class NewsPipelineTest(unittest.TestCase):
         self.assertEqual(story.title, "Existing story")
         self.assertIn("Existing story", params.video_subject)
         self.assertIn("Already selected", params.video_subject)
+        self.assertIn("verified timeline details", params.video_subject)
+        self.assertIn("Article details:", params.news_source_context["summary"])
         self.assertEqual(params.video_script, "")
+
+    def test_enrich_story_article_text_appends_full_article(self):
+        story = NewsStory(
+            title="Budget deal passes",
+            summary="Lawmakers approved the deal.",
+            url="https://news.example/budget",
+        )
+
+        with mock.patch.object(
+            news_pipeline.news_article,
+            "fetch_article_text",
+            return_value="The bill passed after a late-night vote and now goes to the president.",
+        ):
+            enriched = news_pipeline.enrich_story_article_text(story)
+
+        self.assertIn("Lawmakers approved the deal.", enriched.summary)
+        self.assertIn("Article details:", enriched.summary)
+        self.assertIn("late-night vote", enriched.summary)
 
     def test_news_script_subject_keeps_headline_and_bans_padding(self):
         story = NewsStory(
@@ -190,7 +220,7 @@ class NewsPipelineTest(unittest.TestCase):
 
         self.assertIn("headline is the angle", subject)
         self.assertIn("Use only facts found in the source material", subject)
-        self.assertIn("160-220 spoken words", subject)
+        self.assertIn("110-150 spoken words", subject)
         self.assertIn("keep the script shorter instead of padding it", subject)
         self.assertIn("Drone strike hits Romanian border town", subject)
 

@@ -106,7 +106,7 @@ def _news_bgm_volume() -> float:
 def build_video_params_from_news(
     request: NewsAutomationRunRequest, story: NewsStory
 ) -> VideoParams:
-    story = news_pipeline.enrich_story_media(story)
+    story = news_pipeline.enrich_story(story)
     source_context = news_pipeline.build_source_context(story)
     output_language = _news_output_language(request)
     platforms = request.platforms or _configured_platforms()

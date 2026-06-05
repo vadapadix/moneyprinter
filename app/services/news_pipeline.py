@@ -1,6 +1,6 @@
 from app.config import config
 from app.models.schema import MaterialInfo, NewsMediaAsset, NewsQueryRequest, NewsStory
-from app.services import news_sources, web_media
+from app.services import news_article, news_sources, web_media
 from app.services.news_sources.base import is_direct_video_url, media_asset_to_material
 
 
@@ -24,6 +24,26 @@ def enrich_story_media(story: NewsStory) -> NewsStory:
     if discovered:
         story.media = [*story.media, *discovered]
     return story
+
+
+def enrich_story_article_text(story: NewsStory) -> NewsStory:
+    article_text = news_article.fetch_article_text(story.url)
+    if not article_text:
+        return story
+
+    summary = (story.summary or "").strip()
+    if article_text in summary:
+        return story
+
+    story.summary = (
+        f"{summary}\n\nArticle details: {article_text}" if summary else article_text
+    ).strip()
+    return story
+
+
+def enrich_story(story: NewsStory) -> NewsStory:
+    story = enrich_story_media(story)
+    return enrich_story_article_text(story)
 
 
 def build_materials_from_assets(assets: list[dict]) -> list[MaterialInfo]:
@@ -104,13 +124,13 @@ def build_script_subject(story: NewsStory, output_language: str = "English") -> 
         f"Write a short factual news voiceover in {output_language}. "
         "The headline is the angle of the story, so the script must stay directly on that headline. "
         "Use only facts found in the source material below. Do not invent names, numbers, causes, reactions, or consequences. "
-        "Aim for 160-220 spoken words with enough substance for a detailed 45-60 second short, but if the source material is thin, keep the script shorter instead of padding it. "
+        "Aim for 110-150 spoken words with enough substance for a detailed short, but if the source material is thin, keep the script shorter instead of padding it. "
         "Use plain human newsreader English with concrete details and short sentences. "
         "Avoid filler, motivational wording, broad lessons, vague phrases like 'this highlights' or 'raises questions', and any intro such as 'welcome'. "
         "Do not mention Telegram, the source URL, hashtags, markdown, narrator labels, or that this is a script. "
         "Make it suitable for a 45-60 second YouTube Shorts/TikTok news video. "
         f"Title: {title}. "
-        f"Summary: {summary}. "
+        f"Source material: {summary}. "
         f"Source URL: {source_url}."
     ).strip()
 
@@ -150,7 +170,8 @@ def prepare_news_context(params) -> NewsStory | None:
 
     if params.news_source_context:
         story = story_from_source_context(params.news_source_context)
-        story = enrich_story_media(story)
+        story = enrich_story(story)
+        params.news_source_context = build_source_context(story)
         params.news_media_assets = params.news_media_assets or [
             asset.model_dump() for asset in story.media
         ]
@@ -170,7 +191,7 @@ def prepare_news_context(params) -> NewsStory | None:
     if not stories:
         return None
 
-    story = enrich_story_media(stories[0])
+    story = enrich_story(stories[0])
     params.news_source = query.source
     params.news_query = query.query
     params.news_source_context = build_source_context(story)

@@ -212,6 +212,70 @@ class TaskNewsHistoryTest(unittest.TestCase):
             "Parliament approves emergency budget",
         )
 
+    def test_news_terms_use_source_context_without_llm_terms_prompt(self):
+        params = VideoParams(
+            video_subject=(
+                "Write a short factual news voiceover in English. "
+                "Title: U.S. sanctions Cuban president."
+            ),
+            video_source="news",
+            news_query="United States latest",
+            news_source_context={
+                "title": "U.S. sanctions Cuban president",
+                "summary": (
+                    "Treasury sanctions target Miguel Diaz-Canel and senior "
+                    "Cuban leadership."
+                ),
+                "keywords": ["Cuba", "sanctions"],
+            },
+        )
+
+        with mock.patch.object(task.llm, "generate_terms") as generate_terms_mock:
+            terms = task.generate_terms(
+                "task-news-terms",
+                params,
+                "The Treasury Department announced sanctions on Miguel Diaz-Canel.",
+            )
+
+        generate_terms_mock.assert_not_called()
+        self.assertTrue(any("Cuban" in term for term in terms), terms)
+        self.assertTrue(any("sanctions" in term.lower() for term in terms), terms)
+        self.assertNotIn("English The", terms)
+        self.assertNotIn("Use", terms)
+
+    def test_edge_subtitle_failure_does_not_download_whisper_by_default(self):
+        params = VideoParams(
+            video_subject="News",
+            subtitle_enabled=True,
+        )
+
+        with tempfile.TemporaryDirectory() as task_dir, mock.patch.object(
+            task.utils,
+            "task_dir",
+            return_value=task_dir,
+        ), mock.patch.dict(
+            "app.services.task.config.app",
+            {"subtitle_provider": "edge", "subtitle_whisper_fallback_enabled": False},
+            clear=False,
+        ), mock.patch.object(
+            task.voice,
+            "create_subtitle",
+            return_value=None,
+        ), mock.patch.object(
+            task.subtitle,
+            "create",
+        ) as whisper_create_mock:
+            subtitle_path = task.generate_subtitle(
+                "task-subtitle",
+                params,
+                "A factual news script.",
+                sub_maker=object(),
+                audio_file="audio.mp3",
+            )
+
+        self.assertEqual(subtitle_path, "")
+        whisper_create_mock.assert_not_called()
+
     def test_social_publish_preflight_reports_blocked_platforms(self):
         params = VideoParams(
             video_subject="News",

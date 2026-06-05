@@ -608,6 +608,8 @@ def _fallback_news_script(
     source_context = source_context or {}
     title = str(source_context.get("title") or video_subject or "").strip()
     summary = str(source_context.get("summary") or "").strip()
+    if "Article details:" in summary:
+        summary = summary.split("Article details:", 1)[1].strip()
     source_url = str(source_context.get("source_url") or "").strip()
     parts = []
     if title:
@@ -620,6 +622,10 @@ def _fallback_news_script(
     return _trim_to_word_limit(script or video_subject, max_words=max_words)
 
 
+def _word_count(text: str) -> int:
+    return len(re.findall(r"\S+", text or ""))
+
+
 def generate_news_script(
     video_subject: str,
     language: str = "en",
@@ -628,8 +634,8 @@ def generate_news_script(
     max_words: int | None = None,
 ) -> str:
     source_context = source_context or {}
-    max_words = int(max_words or config.app.get("news_script_max_words", 130))
-    min_words = int(config.app.get("news_script_min_words", 55))
+    max_words = int(max_words or config.app.get("news_script_max_words", 150))
+    min_words = int(config.app.get("news_script_min_words", 95))
     title = str(source_context.get("title") or video_subject or "").strip()
     summary = str(source_context.get("summary") or "").strip()
     source_url = str(source_context.get("source_url") or "").strip()
@@ -637,6 +643,7 @@ def generate_news_script(
     related_urls = source_context.get("source_urls") or []
     output_language = language or "en"
 
+    source_fact_words = _word_count(" ".join([title, summary]))
     prompt = f"""
 # Role: Serious short-form news script editor
 
@@ -670,6 +677,23 @@ paragraphs: {paragraph_number}
             response = _generate_response(prompt=prompt)
             if response:
                 final_script = _trim_to_word_limit(response, max_words=max_words)
+            if (
+                final_script
+                and "Error: " not in final_script
+                and _word_count(final_script) < min_words
+                and source_fact_words >= min_words
+            ):
+                logger.warning(
+                    "generated news script is too short for available source facts, retrying"
+                )
+                prompt = f"""
+{prompt}
+
+The previous draft was too short. Rewrite it with {min_words}-{max_words} spoken words.
+Use the specific source facts already supplied: who was sanctioned, which relatives were listed,
+what the sanctions do, and the administration action that led to them. Keep it factual and do not add new facts.
+""".strip()
+                continue
             if final_script and "Error: " not in final_script:
                 break
         except Exception as e:
@@ -685,6 +709,15 @@ paragraphs: {paragraph_number}
             source_context=source_context,
             max_words=max_words,
         )
+    elif _word_count(final_script) < min_words and source_fact_words >= min_words:
+        fallback_script = _fallback_news_script(
+            video_subject=video_subject,
+            source_context=source_context,
+            max_words=max_words,
+        )
+        if _word_count(fallback_script) > _word_count(final_script):
+            logger.warning("using source-based news script because LLM draft stayed short")
+            final_script = fallback_script
 
     logger.success(f"completed news script: \n{final_script}")
     return final_script.strip()

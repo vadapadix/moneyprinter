@@ -69,6 +69,36 @@ class VideoBrandingTest(unittest.TestCase):
         self.assertEqual(first["candidate_count"], 3)
         self.assertTrue(first["file"].endswith((".mp3", ".m4a", ".wav", ".aac")))
 
+    def test_news_serious_bgm_uses_default_subset_when_configured_files_missing(self):
+        with tempfile.TemporaryDirectory() as song_dir:
+            for filename in ("output004.mp3", "output019.mp3", "output029.mp3"):
+                with open(os.path.join(song_dir, filename), "wb"):
+                    pass
+
+            with mock.patch.object(video.utils, "song_dir", return_value=song_dir), mock.patch.dict(
+                "app.services.video.config.app",
+                {
+                    "news_serious_bgm_strategy": "deterministic",
+                    "news_serious_bgm_files": ["missing.mp3"],
+                },
+                clear=False,
+            ), mock.patch.object(
+                video.random,
+                "choice",
+                side_effect=AssertionError("serious fallback should not use random.choice"),
+            ):
+                selection = video.get_bgm_selection(
+                    "news_serious",
+                    context={"title": "Serious market update"},
+                )
+
+        self.assertIn("default_subset", selection["strategy"])
+        self.assertEqual(selection["candidate_count"], 2)
+        self.assertTrue(
+            selection["file"].endswith(("output004.mp3", "output019.mp3"))
+        )
+        self.assertFalse(selection["file"].endswith("output029.mp3"))
+
     def test_brand_watermark_coerces_float_stroke_width_to_int(self):
         class FakeClip:
             w = 120

@@ -215,6 +215,13 @@ audio_codec = "aac"
 audio_bitrate = "192k"
 fps = 30
 _BGM_EXTENSIONS = (".mp3",)
+_DEFAULT_SERIOUS_NEWS_BGM_FILES = [
+    "output004.mp3",
+    "output011.mp3",
+    "output015.mp3",
+    "output019.mp3",
+    "output023.mp3",
+]
 _DEFAULT_VIDEO_CODEC = "libx264"
 _SUPPORTED_VIDEO_CODECS = (
     "libx264",
@@ -615,6 +622,45 @@ def _deterministic_bgm_choice(
     return sorted(candidates)[int(digest[:8], 16) % len(candidates)]
 
 
+def _resolve_existing_bgm_candidates(song_dir: str, files) -> List[str]:
+    candidates = []
+    for configured_file in _normalize_bgm_file_list(files):
+        try:
+            resolved_file = _resolve_bgm_file_path(song_dir, str(configured_file))
+        except ValueError as exc:
+            logger.warning(
+                f"reject unsafe serious bgm file: {configured_file}, error: {str(exc)}"
+            )
+            continue
+        if os.path.isfile(resolved_file) and resolved_file.lower().endswith(
+            _BGM_EXTENSIONS
+        ):
+            candidates.append(resolved_file)
+    return candidates
+
+
+def _select_serious_bgm(
+    candidates: List[str], context: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    if not candidates:
+        return {"file": "", "strategy": "news_serious_missing", "candidate_count": 0}
+
+    strategy = str(
+        config.app.get("news_serious_bgm_strategy", "deterministic")
+        or "deterministic"
+    ).lower()
+    selected_file = (
+        random.choice(candidates)
+        if strategy == "random"
+        else _deterministic_bgm_choice(candidates, context=context)
+    )
+    return {
+        "file": selected_file,
+        "strategy": f"news_serious_{strategy}",
+        "candidate_count": len(candidates),
+    }
+
+
 def get_bgm_selection(
     bgm_type: str = "random",
     bgm_file: str = "",
@@ -650,44 +696,25 @@ def get_bgm_selection(
         song_dir = utils.song_dir()
         configured_files = config.app.get(
             "news_serious_bgm_files",
-            [
-                "output004.mp3",
-                "output011.mp3",
-                "output015.mp3",
-                "output019.mp3",
-                "output023.mp3",
-            ],
+            _DEFAULT_SERIOUS_NEWS_BGM_FILES,
         )
-        candidates = []
-        for configured_file in _normalize_bgm_file_list(configured_files):
-            try:
-                resolved_file = _resolve_bgm_file_path(song_dir, str(configured_file))
-            except ValueError as exc:
-                logger.warning(
-                    f"reject unsafe serious bgm file: {configured_file}, error: {str(exc)}"
-                )
-                continue
-            if os.path.isfile(resolved_file) and resolved_file.lower().endswith(
-                _BGM_EXTENSIONS
-            ):
-                candidates.append(resolved_file)
+        candidates = _resolve_existing_bgm_candidates(song_dir, configured_files)
 
         if candidates:
-            strategy = str(
-                config.app.get("news_serious_bgm_strategy", "deterministic")
-                or "deterministic"
-            ).lower()
-            selected_file = (
-                random.choice(candidates)
-                if strategy == "random"
-                else _deterministic_bgm_choice(candidates, context=context)
+            return _select_serious_bgm(candidates, context=context)
+
+        default_candidates = _resolve_existing_bgm_candidates(
+            song_dir, _DEFAULT_SERIOUS_NEWS_BGM_FILES
+        )
+        if default_candidates:
+            selection = _select_serious_bgm(default_candidates, context=context)
+            selection["strategy"] = f"{selection['strategy']}_default_subset"
+            logger.warning(
+                "no configured serious news bgm files found, using default serious subset"
             )
-            return {
-                "file": selected_file,
-                "strategy": f"news_serious_{strategy}",
-                "candidate_count": len(candidates),
-            }
-        logger.warning("no configured serious news bgm files found, falling back to random")
+            return selection
+
+        logger.warning("no serious news bgm files found, falling back to random")
 
     if bgm_type in ("random", "news_serious", "serious"):
         suffix = "*.mp3"

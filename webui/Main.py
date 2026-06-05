@@ -217,6 +217,138 @@ def run_news_automation_inline(request: NewsAutomationRunRequest) -> dict:
         "results": results,
     }
 
+
+def _news_automation_sources() -> list[str]:
+    return ["auto", "telethon", "newsdata", "guardian", "telegram"]
+
+
+def _coerce_news_limit(value) -> int:
+    try:
+        return min(10, max(1, int(value)))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _render_news_automation_result(key: str):
+    _render_action_result(key)
+
+
+def render_news_automation_launcher(
+    key_prefix: str,
+    params: VideoParams,
+    compact: bool = False,
+) -> dict:
+    """Render a one-click news run launcher and keep its result visible after reruns."""
+    news_sources = _news_automation_sources()
+    saved_news_source = config.app.get("news_source", "auto")
+    if saved_news_source not in news_sources:
+        saved_news_source = "auto"
+
+    if compact:
+        news_cols = st.columns([1, 2])
+        source_container = news_cols[0]
+        query_container = news_cols[1]
+        detail_cols = st.columns(4)
+    else:
+        news_cols = st.columns([1, 2, 1, 1])
+        source_container = news_cols[0]
+        query_container = news_cols[1]
+        detail_cols = [news_cols[2], news_cols[3], *st.columns(2)]
+
+    news_source = source_container.selectbox(
+        "Source",
+        options=news_sources,
+        index=news_sources.index(saved_news_source),
+        key=f"{key_prefix}_news_source",
+    )
+    news_query = query_container.text_input(
+        "Search query",
+        value=config.app.get("news_query", ""),
+        key=f"{key_prefix}_news_query",
+    ).strip()
+    news_limit = detail_cols[0].number_input(
+        "Videos",
+        min_value=1,
+        max_value=10,
+        value=_coerce_news_limit(config.app.get("news_auto_limit", 1)),
+        step=1,
+        key=f"{key_prefix}_news_limit",
+    )
+    news_country = detail_cols[1].text_input(
+        "Country",
+        value=config.app.get("news_country", "us"),
+        key=f"{key_prefix}_news_country",
+    ).strip()
+    news_language = detail_cols[2].text_input(
+        "Language",
+        value=config.app.get("news_language", "en"),
+        key=f"{key_prefix}_news_language",
+    ).strip()
+    news_category = detail_cols[3].text_input(
+        "Category",
+        value=config.app.get("news_category", ""),
+        key=f"{key_prefix}_news_category",
+    ).strip()
+
+    config.app["news_source"] = news_source
+    config.app["news_query"] = news_query
+    config.app["news_auto_limit"] = int(news_limit)
+    config.app["news_country"] = news_country
+    config.app["news_language"] = news_language or "en"
+    config.app["news_category"] = news_category
+
+    settings = {
+        "source": news_source,
+        "query": news_query,
+        "country": news_country,
+        "language": news_language or "en",
+        "category": news_category or None,
+        "limit": int(news_limit),
+    }
+
+    action_key = f"{key_prefix}_auto_news_publish"
+    if st.button(
+        "Find next unique news, generate, and publish",
+        key=action_key,
+        type="primary",
+        use_container_width=True,
+    ):
+        config.save_config()
+        try:
+            request = NewsAutomationRunRequest(
+                **settings,
+                video_language=params.video_language or "en",
+                platforms=params.social_platforms or None,
+                auto_publish=True,
+                privacy=params.social_privacy or get_social_privacy_setting(),
+                tiktok_direct_post_consent=bool(params.tiktok_direct_post_consent),
+            )
+            with st.spinner("Finding unique news, generating videos, and publishing..."):
+                payload = run_news_automation_inline(request)
+            if payload["queued_count"]:
+                _store_action_result(
+                    action_key,
+                    "success",
+                    f"News automation completed: {payload['queued_count']} videos processed.",
+                    payload,
+                )
+            else:
+                _store_action_result(
+                    action_key,
+                    "warning",
+                    "No new unique news stories found for this query/source.",
+                    payload,
+                )
+        except Exception as exc:
+            _store_action_result(
+                action_key,
+                "error",
+                f"Failed to start news automation: {str(exc)}",
+            )
+
+    _render_news_automation_result(action_key)
+    return settings
+
 st.set_page_config(
     page_title="MoneyPrinterTurbo",
     page_icon="🤖",
@@ -1000,70 +1132,7 @@ with st.container(border=True):
 
 with st.container(border=True):
     st.write("News automation")
-    news_sources = ["auto", "telethon", "newsdata", "guardian", "telegram"]
-    saved_news_source = config.app.get("news_source", "auto")
-    if saved_news_source not in news_sources:
-        saved_news_source = "auto"
-    news_cols = st.columns([1, 2, 1, 1])
-    news_source = news_cols[0].selectbox(
-        "Source",
-        options=news_sources,
-        index=news_sources.index(saved_news_source),
-        key="top_news_source",
-    )
-    news_query = news_cols[1].text_input(
-        "Search query",
-        value=config.app.get("news_query", ""),
-        key="top_news_query",
-    ).strip()
-    news_limit = news_cols[2].number_input(
-        "Videos",
-        min_value=1,
-        max_value=10,
-        value=int(config.app.get("news_auto_limit", 1)),
-        step=1,
-        key="top_news_limit",
-    )
-    news_country = news_cols[3].text_input(
-        "Country",
-        value=config.app.get("news_country", "us"),
-        key="top_news_country",
-    ).strip()
-    news_language = st.text_input(
-        "Language",
-        value=config.app.get("news_language", "en"),
-        key="top_news_language",
-    ).strip()
-    config.app["news_source"] = news_source
-    config.app["news_query"] = news_query
-    config.app["news_auto_limit"] = int(news_limit)
-    config.app["news_country"] = news_country
-    config.app["news_language"] = news_language
-    if st.button("Find news, generate videos, and publish", key="top_auto_news_publish", type="primary"):
-        config.save_config()
-        try:
-            payload = run_news_automation_inline(
-                NewsAutomationRunRequest(
-                    source=news_source,
-                    query=news_query,
-                    country=news_country,
-                    language=news_language,
-                    limit=int(news_limit),
-                    platforms=params.social_platforms or None,
-                    auto_publish=True,
-                    privacy=params.social_privacy or get_social_privacy_setting(),
-                    tiktok_direct_post_consent=True,
-                )
-            )
-            if payload["queued_count"]:
-                st.success(
-                    f"News automation completed: {payload['queued_count']} videos processed"
-                )
-                st.json(payload)
-            else:
-                st.warning("No news stories found for this query/source.")
-        except Exception as exc:
-            st.error(f"Failed to start news automation: {str(exc)}")
+    render_news_automation_launcher("top", params)
 
 llm_provider = config.app.get("llm_provider", "").lower()
 panel = st.columns(3)
@@ -1172,60 +1241,14 @@ with middle_panel:
             )
 
         if params.video_source == "news":
-            news_sources = ["auto", "newsdata", "guardian", "telegram", "telethon"]
-            saved_news_source = config.app.get("news_source", "auto")
-            if saved_news_source not in news_sources:
-                saved_news_source = "auto"
-            params.news_source = st.selectbox(
-                "News source",
-                options=news_sources,
-                index=news_sources.index(saved_news_source),
+            news_settings = render_news_automation_launcher(
+                "video_source", params, compact=True
             )
-            params.news_query = st.text_input(
-                "News query",
-                value=config.app.get("news_query", "") or params.video_subject,
-            ).strip()
-            news_cols = st.columns(3)
-            params.news_country = news_cols[0].text_input(
-                "Country", value=config.app.get("news_country", "us")
-            ).strip()
-            params.news_language = news_cols[1].text_input(
-                "Language", value=config.app.get("news_language", "en")
-            ).strip()
-            params.news_category = news_cols[2].text_input(
-                "Category", value=config.app.get("news_category", "")
-            ).strip() or None
-            config.app["news_source"] = params.news_source
-            config.app["news_query"] = params.news_query
-            config.app["news_country"] = params.news_country
-            config.app["news_language"] = params.news_language
-            config.app["news_category"] = params.news_category or ""
-            if st.button("Auto-run news and publish", key="auto_news_publish"):
-                try:
-                    payload = run_news_automation_inline(
-                        NewsAutomationRunRequest(
-                            source=params.news_source,
-                            query=params.news_query,
-                            country=params.news_country,
-                            language=params.news_language,
-                            category=params.news_category,
-                            limit=int(config.app.get("news_auto_limit", 1)),
-                            video_language=params.video_language,
-                            platforms=params.social_platforms or None,
-                            auto_publish=True,
-                            privacy=params.social_privacy or get_social_privacy_setting(),
-                            tiktok_direct_post_consent=True,
-                        )
-                    )
-                    if payload["queued_count"]:
-                        st.success(
-                            f"News automation completed: {payload['queued_count']} videos processed"
-                        )
-                        st.json(payload)
-                    else:
-                        st.warning("No news stories found for this query/source.")
-                except Exception as exc:
-                    st.error(f"Failed to start news automation: {str(exc)}")
+            params.news_source = news_settings["source"]
+            params.news_query = news_settings["query"] or params.video_subject
+            params.news_country = news_settings["country"]
+            params.news_language = news_settings["language"]
+            params.news_category = news_settings["category"]
 
         selected_index = st.selectbox(
             tr("Video Concat Mode"),

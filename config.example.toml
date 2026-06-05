@@ -190,6 +190,10 @@ subtitle_provider = "edge"
 # In such cases, you can manually download ffmpeg and set the ffmpeg_path, download link: https://www.gyan.dev/ffmpeg/builds/
 
 # ffmpeg_path = "C:\\Users\\harry\\Downloads\\ffmpeg.exe"
+# Advanced: video encoder for final MP4 writing. Unsupported or failing hardware
+# encoders automatically fall back to libx264.
+# Supported: libx264, h264_nvenc, h264_amf, h264_qsv, h264_mf, h264_videotoolbox.
+video_codec = "libx264"
 #########################################################################################
 
 # 当视频生成成功后，API服务提供的视频下载接入点，默认为当前服务的地址和监听端口

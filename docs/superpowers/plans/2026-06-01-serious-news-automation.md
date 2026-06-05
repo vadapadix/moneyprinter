@@ -494,6 +494,10 @@ Completed tasks now include `publish_status`, summarizing whether auto-publish w
 
 `yt-dlp` now applies the same headline relevance filter before downloading candidates, so files recovered after `Maximum number of downloads reached` are not arbitrary first results from YouTube/web search.
 
+- [x] **Step 3.7: Pull necessary upstream stability fixes**
+
+Synced selected upstream fixes from `harry0703/MoneyPrinterTurbo`: Qwen empty-response handling, SRT final-block preservation, markdown separator filtering for subtitle matching, and configurable video codec fallback to keep final MP4 rendering stable on machines where hardware encoders are missing or fail at runtime.
+
 - [x] **Step 4: Stabilize config-dependent preflight test**
 
 The TikTok direct-post preflight test now fixes `tiktok_publish_mode = "api"` so local browser-assist config does not change the expected skip reason.

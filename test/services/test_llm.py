@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,6 +23,34 @@ class TestLiteLLMProvider(unittest.TestCase):
     def _use_litellm_provider(self, model_name="openai/gpt-4o-mini"):
         config.app["llm_provider"] = "litellm"
         config.app["litellm_model_name"] = model_name
+
+    def _use_qwen_provider(self):
+        config.app["llm_provider"] = "qwen"
+        config.app["qwen_api_key"] = "qwen-key"
+        config.app["qwen_model_name"] = "qwen-test"
+
+    @contextmanager
+    def _patch_dashscope_generation(self, response):
+        class FakeGenerationResponse(dict):
+            def __init__(self, payload):
+                super().__init__(payload)
+                self.status_code = 200
+
+        fake_response = FakeGenerationResponse(response)
+        fake_dashscope = types.ModuleType("dashscope")
+        fake_dashscope.Generation = types.SimpleNamespace(call=lambda **kwargs: fake_response)
+        response_module = types.ModuleType("dashscope.api_entities.dashscope_response")
+        response_module.GenerationResponse = FakeGenerationResponse
+        api_entities_module = types.ModuleType("dashscope.api_entities")
+        with patch.dict(
+            sys.modules,
+            {
+                "dashscope": fake_dashscope,
+                "dashscope.api_entities": api_entities_module,
+                "dashscope.api_entities.dashscope_response": response_module,
+            },
+        ):
+            yield
 
     def test_litellm_provider_returns_normalized_text(self):
         """
@@ -116,6 +145,36 @@ class TestLiteLLMProvider(unittest.TestCase):
         self.assertIn("Error:", result)
         self.assertIn("api_key is not set", result)
         self.assertNotIn("litellm", result.lower())
+
+    def test_qwen_provider_reports_empty_choices(self):
+        self._use_qwen_provider()
+
+        with self._patch_dashscope_generation({"output": {"text": None, "choices": []}}):
+            result = llm._generate_response("Say hello")
+
+        self.assertIn("Error:", result)
+        self.assertIn("returned empty choices", result)
+        self.assertNotIn("NoneType", result)
+
+    def test_qwen_provider_reports_empty_text(self):
+        self._use_qwen_provider()
+
+        with self._patch_dashscope_generation({"output": {"text": None}}):
+            result = llm._generate_response("Say hello")
+
+        self.assertIn("Error:", result)
+        self.assertIn("returned empty text content", result)
+        self.assertNotIn("NoneType", result)
+
+    def test_qwen_provider_reads_chat_choice_content(self):
+        self._use_qwen_provider()
+
+        with self._patch_dashscope_generation(
+            {"output": {"choices": [{"message": {"content": "hello\nqwen"}}]}}
+        ):
+            result = llm._generate_response("Say hello")
+
+        self.assertEqual(result, "helloqwen")
 
 
     def test_azure_provider_uses_azure_client_directly(self):

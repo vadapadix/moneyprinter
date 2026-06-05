@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import time
 from contextlib import redirect_stdout
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 from loguru import logger
 from moviepy import (
@@ -212,9 +213,19 @@ audio_codec = "aac"
 # Docker 里的 ffmpeg/AAC 组合在默认配置下更容易出现音频质量波动，
 # 这里显式抬高音频码率，避免成片阶段因为默认值过低而引入明显失真。
 audio_bitrate = "192k"
-video_codec = "libx264"
 fps = 30
 _BGM_EXTENSIONS = (".mp3",)
+_DEFAULT_VIDEO_CODEC = "libx264"
+_SUPPORTED_VIDEO_CODECS = (
+    "libx264",
+    "h264_nvenc",
+    "h264_amf",
+    "h264_qsv",
+    "h264_mf",
+    "h264_videotoolbox",
+)
+video_codec = _DEFAULT_VIDEO_CODEC
+_runtime_disabled_video_codecs = set()
 
 
 def get_ffmpeg_binary():
@@ -240,9 +251,108 @@ def get_ffmpeg_binary():
     return "ffmpeg"
 
 
+def _get_configured_video_codec() -> str:
+    configured_codec = str(
+        config.app.get("video_codec", _DEFAULT_VIDEO_CODEC) or _DEFAULT_VIDEO_CODEC
+    ).strip()
+    if configured_codec not in _SUPPORTED_VIDEO_CODECS:
+        logger.warning(
+            f"unsupported video codec configured: {configured_codec}, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+    return configured_codec
+
+
+@lru_cache(maxsize=16)
+def _ffmpeg_encoder_exists(ffmpeg_binary: str, codec: str) -> bool:
+    try:
+        result = subprocess.run(
+            [ffmpeg_binary, "-hide_banner", "-encoders"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.warning(
+            "failed to inspect ffmpeg encoders, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}: {str(exc)}"
+        )
+        return False
+
+    if result.returncode != 0:
+        logger.warning(
+            "failed to inspect ffmpeg encoders, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}: {(result.stderr or result.stdout or '').strip()}"
+        )
+        return False
+    return codec in result.stdout
+
+
+def _get_effective_video_codec(preferred_codec: str | None = None) -> str:
+    selected_codec = preferred_codec or _get_configured_video_codec()
+    if selected_codec == _DEFAULT_VIDEO_CODEC:
+        return _DEFAULT_VIDEO_CODEC
+
+    if selected_codec in _runtime_disabled_video_codecs:
+        logger.warning(
+            f"video codec {selected_codec} was disabled after a runtime failure, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+
+    if not _ffmpeg_encoder_exists(get_ffmpeg_binary(), selected_codec):
+        logger.warning(
+            f"ffmpeg encoder {selected_codec} is not available, "
+            f"fallback to {_DEFAULT_VIDEO_CODEC}"
+        )
+        return _DEFAULT_VIDEO_CODEC
+
+    return selected_codec
+
+
+def _disable_runtime_video_codec(codec: str, reason: str):
+    if codec == _DEFAULT_VIDEO_CODEC:
+        return
+    _runtime_disabled_video_codecs.add(codec)
+    logger.warning(
+        f"video codec {codec} failed, fallback to {_DEFAULT_VIDEO_CODEC}. "
+        f"reason: {reason}"
+    )
+
+
+def _fallback_write_videofile(clip, output_file: str, failed_codec: str, reason: str, **kwargs):
+    clip.write_videofile(output_file, codec=_DEFAULT_VIDEO_CODEC, **kwargs)
+    _disable_runtime_video_codec(failed_codec, reason)
+    return _DEFAULT_VIDEO_CODEC
+
+
+def _write_videofile_with_codec_fallback(clip, output_file: str, codec: str, **kwargs):
+    effective_codec = _get_effective_video_codec(codec)
+    try:
+        clip.write_videofile(output_file, codec=effective_codec, **kwargs)
+        return effective_codec
+    except Exception as exc:
+        if effective_codec == _DEFAULT_VIDEO_CODEC:
+            raise
+        return _fallback_write_videofile(
+            clip,
+            output_file,
+            failed_codec=effective_codec,
+            reason=str(exc),
+            **kwargs,
+        )
+
+
 def _escape_ffmpeg_concat_path(file_path: str) -> str:
     # concat demuxer 使用单引号包裹路径，路径中的单引号需要先转义。
     return file_path.replace("'", "'\\''")
+
+
+def _format_ffmpeg_concat_path(file_path: str) -> str:
+    absolute_path = os.path.abspath(file_path)
+    return _escape_ffmpeg_concat_path(absolute_path.replace("\\", "/"))
 
 
 def concat_video_clips_with_ffmpeg(
@@ -251,32 +361,30 @@ def concat_video_clips_with_ffmpeg(
     concat_list_file = os.path.join(output_dir, "ffmpeg-concat-list.txt")
     with open(concat_list_file, "w", encoding="utf-8") as fp:
         for clip_file in clip_files:
-            absolute_path = os.path.abspath(clip_file)
-            fp.write(f"file '{_escape_ffmpeg_concat_path(absolute_path)}'\n")
+            fp.write(f"file '{_format_ffmpeg_concat_path(clip_file)}'\n")
 
-    command = [
-        get_ffmpeg_binary(),
-        "-y",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-        concat_list_file,
-        "-c:v",
-        video_codec,
-        "-threads",
-        str(threads or 2),
-        "-pix_fmt",
-        "yuv420p",
-        output_file,
-    ]
+    def build_command(codec: str) -> list[str]:
+        return [
+            get_ffmpeg_binary(),
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            concat_list_file,
+            "-c:v",
+            codec,
+            "-threads",
+            str(threads or 2),
+            "-pix_fmt",
+            "yuv420p",
+            output_file,
+        ]
 
-    try:
-        # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
-        # 从而降低画质劣化与颜色偏移风险。
+    def run_concat(codec: str):
         result = subprocess.run(
-            command,
+            build_command(codec),
             capture_output=True,
             text=True,
             check=False,
@@ -284,6 +392,20 @@ def concat_video_clips_with_ffmpeg(
         if result.returncode != 0:
             error_message = (result.stderr or result.stdout or "").strip()
             raise RuntimeError(error_message or "ffmpeg concat failed")
+        return codec
+
+    try:
+        # 使用 ffmpeg 只做一次串联与编码，避免 MoviePy 逐段合并时反复重编码，
+        # 从而降低画质劣化与颜色偏移风险。
+        effective_codec = _get_effective_video_codec()
+        try:
+            return run_concat(effective_codec)
+        except Exception as exc:
+            if effective_codec == _DEFAULT_VIDEO_CODEC:
+                raise
+            result_codec = run_concat(_DEFAULT_VIDEO_CODEC)
+            _disable_runtime_video_codec(effective_codec, str(exc))
+            return result_codec
     finally:
         delete_files(concat_list_file)
 
@@ -719,7 +841,13 @@ def combine_videos(
                 
             # wirte clip to temp file
             clip_file = f"{output_dir}/temp-clip-{i+1}.mp4"
-            clip.write_videofile(clip_file, logger=None, fps=fps, codec=video_codec)
+            _write_videofile_with_codec_fallback(
+                clip,
+                clip_file,
+                codec=_get_configured_video_codec(),
+                logger=None,
+                fps=fps,
+            )
 
             # Store clip duration before closing
             clip_duration_saved = clip.duration
@@ -1016,8 +1144,10 @@ def generate_video(
         f"fps={fps}, audio_fps={output_audio_fps}, threads={params.n_threads or 2}"
     )
     try:
-        video_clip.write_videofile(
-            output_file,
+        _write_videofile_with_codec_fallback(
+            video_clip,
+            output_file=output_file,
+            codec=_get_configured_video_codec(),
             audio_codec=audio_codec,
             audio_fps=output_audio_fps,
             audio_bitrate=audio_bitrate,

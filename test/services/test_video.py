@@ -81,10 +81,16 @@ class TestSecurityControls(unittest.TestCase):
 
 class TestVideoService(unittest.TestCase):
     def setUp(self):
+        self.original_app_config = dict(config.app)
         self.test_img_path = os.path.join(resources_dir, "1.png")
+        vd._runtime_disabled_video_codecs.clear()
+        vd._ffmpeg_encoder_exists.cache_clear()
     
     def tearDown(self):
-        pass
+        config.app.clear()
+        config.app.update(self.original_app_config)
+        vd._runtime_disabled_video_codecs.clear()
+        vd._ffmpeg_encoder_exists.cache_clear()
     
     def test_preprocess_video(self):
         if not os.path.exists(self.test_img_path):
@@ -195,6 +201,108 @@ class TestVideoService(unittest.TestCase):
         ), patch.dict(sys.modules, {"imageio_ffmpeg": fake_imageio_ffmpeg}):
             self.assertEqual(vd.get_ffmpeg_binary(), "/tmp/bundled-ffmpeg")
 
+    def test_get_effective_video_codec_falls_back_when_encoder_missing(self):
+        config.app["video_codec"] = "h264_nvenc"
+
+        with patch.object(vd, "_ffmpeg_encoder_exists", return_value=False):
+            self.assertEqual(vd._get_effective_video_codec(), "libx264")
+
+    def test_ffmpeg_encoder_exists_falls_back_when_probe_fails(self):
+        with patch.object(
+            vd.subprocess,
+            "run",
+            side_effect=OSError("permission denied"),
+        ):
+            self.assertFalse(vd._ffmpeg_encoder_exists("C:/ffmpeg/ffmpeg.exe", "h264_nvenc"))
+
+    def test_write_videofile_falls_back_after_runtime_encoder_failure(self):
+        class _FakeClip:
+            def __init__(self):
+                self.codecs = []
+
+            def write_videofile(self, output_file, codec, **kwargs):
+                self.codecs.append(codec)
+                if codec == "h264_nvenc":
+                    raise RuntimeError("nvenc device not available")
+
+        fake_clip = _FakeClip()
+
+        with patch.object(vd, "_ffmpeg_encoder_exists", return_value=True):
+            used_codec = vd._write_videofile_with_codec_fallback(
+                fake_clip,
+                "/tmp/fake.mp4",
+                codec="h264_nvenc",
+                logger=None,
+                fps=30,
+            )
+
+        self.assertEqual(used_codec, "libx264")
+        self.assertEqual(fake_clip.codecs, ["h264_nvenc", "libx264"])
+        self.assertIn("h264_nvenc", vd._runtime_disabled_video_codecs)
+
+    def test_write_videofile_does_not_disable_codec_when_fallback_also_fails(self):
+        class _FakeClip:
+            def write_videofile(self, output_file, codec, **kwargs):
+                raise RuntimeError(f"{codec} cannot write output")
+
+        with patch.object(vd, "_ffmpeg_encoder_exists", return_value=True):
+            with self.assertRaises(RuntimeError):
+                vd._write_videofile_with_codec_fallback(
+                    _FakeClip(),
+                    "/tmp/fake.mp4",
+                    codec="h264_nvenc",
+                    logger=None,
+                    fps=30,
+                )
+
+        self.assertNotIn("h264_nvenc", vd._runtime_disabled_video_codecs)
+
+    def test_format_ffmpeg_concat_path_normalizes_windows_path(self):
+        with patch.object(
+            vd.os.path,
+            "abspath",
+            return_value=r"C:\Users\Harry's Videos\clip.mp4",
+        ):
+            self.assertEqual(
+                vd._format_ffmpeg_concat_path(r"C:\Users\Harry's Videos\clip.mp4"),
+                "C:/Users/Harry'\\''s Videos/clip.mp4",
+            )
+
+    def test_concat_video_clips_falls_back_after_runtime_encoder_failure(self):
+        config.app["video_codec"] = "h264_nvenc"
+
+        def fake_run(command, **kwargs):
+            codec_index = command.index("-c:v") + 1
+            codec = command[codec_index]
+            if codec == "h264_nvenc":
+                return types.SimpleNamespace(
+                    returncode=1,
+                    stdout="",
+                    stderr="nvenc device not available",
+                )
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_file = os.path.join(temp_dir, "clip.mp4")
+            output_file = os.path.join(temp_dir, "combined.mp4")
+            Path(clip_file).write_bytes(b"fake")
+
+            with patch.object(vd, "_ffmpeg_encoder_exists", return_value=True):
+                with patch.object(vd.subprocess, "run", side_effect=fake_run) as run:
+                    vd.concat_video_clips_with_ffmpeg(
+                        clip_files=[clip_file],
+                        output_file=output_file,
+                        threads=1,
+                        output_dir=temp_dir,
+                    )
+
+        used_codecs = [
+            call.args[0][call.args[0].index("-c:v") + 1]
+            for call in run.call_args_list
+        ]
+        self.assertEqual(used_codecs, ["h264_nvenc", "libx264"])
+        self.assertIn("h264_nvenc", vd._runtime_disabled_video_codecs)
+
     def test_open_video_clip_quietly_suppresses_moviepy_stdout(self):
         """
         MoviePy 2.1.x 的 FFMPEG_VideoReader 会直接向 stdout 打印 metadata
@@ -293,9 +401,9 @@ class TestVideoService(unittest.TestCase):
                 font=font_path,
                 fontsize=30
             )
-            print(wrapped_text_en, text_height_en)
             # verify text is wrapped
             self.assertIn("\n", wrapped_text_en)
+            self.assertGreater(text_height_en, 0)
             
             # test chinese text wrapping
             test_text_zh = "这是一段用来测试中文长句换行的文本内容，应该会根据宽度限制进行换行处理"
@@ -305,9 +413,9 @@ class TestVideoService(unittest.TestCase):
                 font=font_path,
                 fontsize=30
             )   
-            print(wrapped_text_zh, text_height_zh)
             # verify chinese text is wrapped
             self.assertIn("\n", wrapped_text_zh)
+            self.assertGreater(text_height_zh, 0)
         except Exception as e:
             self.fail(f"test wrap_text failed: {str(e)}")
 

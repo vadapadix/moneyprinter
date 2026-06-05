@@ -204,6 +204,18 @@ def split_string_by_punctuations(s):
     return result
 
 
+def normalize_script_for_subtitle_matching(script: str) -> str:
+    lines = []
+    for raw_line in str(script or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if set(line) <= {"-", "_", "*"}:
+            continue
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def md5(text):
     import hashlib
 

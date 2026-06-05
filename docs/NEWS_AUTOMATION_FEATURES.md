@@ -155,6 +155,10 @@ Web video discovery uses a shorter, dedicated search timeout (`news_web_search_c
 
 Final video rendering logs the BGM load, BGM mix, `write_videofile` start, periodic MoviePy progress, and `write_videofile` completion. The completion log includes the final MP4 size, and the render fails loudly if the output file is missing or empty. If a run appears to stop after `selected bgm`, the next log line now identifies whether it is stuck loading music, mixing audio, writing the final MP4, or validating the rendered file. The progress interval can be tuned with `moviepy_render_progress_interval_seconds`.
 
+Video writing also supports an advanced `video_codec` setting. The default is `libx264`; hardware codecs such as `h264_nvenc`, `h264_amf`, or `h264_qsv` are checked against the local FFmpeg encoder list and automatically fall back to `libx264` if unavailable or if runtime encoding fails.
+
+Upstream subtitle robustness fixes are included: SRT files without a trailing blank line keep their final subtitle block, and markdown separator lines such as `---` are ignored during subtitle/script matching. Qwen LLM responses with empty `choices` or empty text now fail with explicit provider errors instead of surfacing `NoneType` failures.
+
 Important events:
 
 - `news_story_reserved`;

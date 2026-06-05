@@ -52,6 +52,34 @@ def _extract_chat_completion_text(response, llm_provider: str) -> str:
     return _normalize_text_response(content, llm_provider)
 
 
+def _get_response_field(response, key: str):
+    if response is None:
+        return None
+    if isinstance(response, dict):
+        return response.get(key)
+    try:
+        return response[key]
+    except Exception:
+        return getattr(response, key, None)
+
+
+def _extract_qwen_generation_text(response) -> str:
+    output = _get_response_field(response, "output")
+    choices = _get_response_field(output, "choices") if output else None
+    if choices is not None:
+        if not choices:
+            logger.warning("Qwen returned an empty choices list")
+            raise ValueError("[qwen] returned empty choices")
+
+        first_choice = choices[0]
+        message = _get_response_field(first_choice, "message")
+        content = _get_response_field(message, "content") if message else None
+        return _normalize_text_response(content, "qwen")
+
+    content = _get_response_field(output, "text") if output else None
+    return _normalize_text_response(content, "qwen")
+
+
 def _generate_response(prompt: str) -> str:
     try:
         content = ""
@@ -245,8 +273,7 @@ def _generate_response(prompt: str) -> str:
                                 f'[{llm_provider}] returned an error response: "{response}"'
                             )
 
-                        content = response["output"]["text"]
-                        return content.replace("\n", "")
+                        return _extract_qwen_generation_text(response)
                     else:
                         raise Exception(
                             f'[{llm_provider}] returned an invalid response: "{response}"'

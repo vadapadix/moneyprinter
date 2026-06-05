@@ -563,6 +563,133 @@ Generate a script for a video, depending on the subject of the video.
     return final_script.strip()
 
 
+def _clean_script_response(response: str) -> str:
+    response = (response or "").strip()
+    response = response.replace("*", "").replace("#", "")
+    response = re.sub(r"\[.*?\]", "", response)
+    response = re.sub(r"\(.*?\)", "", response)
+    response = re.sub(
+        r"(?im)^\s*(voiceover|narrator|anchor|script|title)\s*:\s*", "", response
+    )
+    response = re.sub(r"\n{3,}", "\n\n", response)
+    return response.strip()
+
+
+def _trim_to_word_limit(text: str, max_words: int) -> str:
+    text = _clean_script_response(text)
+    if max_words <= 0:
+        return text
+    words = re.findall(r"\S+", text)
+    if len(words) <= max_words:
+        return text
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    selected = []
+    word_count = 0
+    for sentence in sentences:
+        sentence_words = re.findall(r"\S+", sentence)
+        if not sentence_words:
+            continue
+        if selected and word_count + len(sentence_words) > max_words:
+            break
+        selected.append(sentence.strip())
+        word_count += len(sentence_words)
+
+    if selected:
+        return " ".join(selected).strip()
+    return " ".join(words[:max_words]).strip().rstrip(",;:") + "."
+
+
+def _fallback_news_script(
+    video_subject: str,
+    source_context: dict | None = None,
+    max_words: int = 120,
+) -> str:
+    source_context = source_context or {}
+    title = str(source_context.get("title") or video_subject or "").strip()
+    summary = str(source_context.get("summary") or "").strip()
+    source_url = str(source_context.get("source_url") or "").strip()
+    parts = []
+    if title:
+        parts.append(title)
+    if summary and summary.lower() not in {title.lower()}:
+        parts.append(summary)
+    if source_url:
+        parts.append(f"The report is linked to the original source: {source_url}.")
+    script = " ".join(parts).strip()
+    return _trim_to_word_limit(script or video_subject, max_words=max_words)
+
+
+def generate_news_script(
+    video_subject: str,
+    language: str = "en",
+    paragraph_number: int = 2,
+    source_context: dict | None = None,
+    max_words: int | None = None,
+) -> str:
+    source_context = source_context or {}
+    max_words = int(max_words or config.app.get("news_script_max_words", 130))
+    min_words = int(config.app.get("news_script_min_words", 55))
+    title = str(source_context.get("title") or video_subject or "").strip()
+    summary = str(source_context.get("summary") or "").strip()
+    source_url = str(source_context.get("source_url") or "").strip()
+    keywords = source_context.get("keywords") or []
+    related_urls = source_context.get("source_urls") or []
+    output_language = language or "en"
+
+    prompt = f"""
+# Role: Serious short-form news script editor
+
+Write a concise spoken news voiceover for a vertical short video.
+
+Hard rules:
+1. Output only the script text, no markdown, labels, title, bullets, or scene directions.
+2. Write in {output_language}. If the source is not English, translate the facts into natural English.
+3. Stay strictly inside the supplied source facts. Do not invent causes, numbers, quotes, locations, names, consequences, or background.
+4. Use a serious newsroom tone: direct, factual, specific, and compact.
+5. Target {min_words}-{max_words} spoken words. If the source is thin, use fewer words instead of padding.
+6. Prefer 2 short paragraphs unless paragraph count is explicitly different.
+7. The first sentence must clearly state the headline event.
+8. Include why it matters only if the source provides enough facts.
+9. Do not say "welcome", "in this video", "breaking news" unless the source itself says it.
+
+Source facts:
+headline: {title}
+summary: {summary}
+source_url: {source_url}
+related_urls: {related_urls}
+keywords: {keywords}
+subject_prompt: {video_subject}
+paragraphs: {paragraph_number}
+""".strip()
+
+    final_script = ""
+    logger.info(f"news subject: {video_subject}")
+    for i in range(_max_retries):
+        try:
+            response = _generate_response(prompt=prompt)
+            if response:
+                final_script = _trim_to_word_limit(response, max_words=max_words)
+            if final_script and "Error: " not in final_script:
+                break
+        except Exception as e:
+            logger.error(f"failed to generate news script: {e}")
+
+        if i < _max_retries:
+            logger.warning(f"failed to generate news script, trying again... {i + 1}")
+
+    if not final_script or "Error: " in final_script:
+        logger.warning("falling back to source-based news script")
+        final_script = _fallback_news_script(
+            video_subject=video_subject,
+            source_context=source_context,
+            max_words=max_words,
+        )
+
+    logger.success(f"completed news script: \n{final_script}")
+    return final_script.strip()
+
+
 def generate_terms(video_subject: str, video_script: str, amount: int = 5) -> List[str]:
     prompt = f"""
 # Role: Video Search Terms Generator

@@ -176,6 +176,63 @@ class TestLiteLLMProvider(unittest.TestCase):
 
         self.assertEqual(result, "helloqwen")
 
+    def test_generate_news_script_uses_source_facts_and_word_limit(self):
+        response = (
+            "Anchor: Parliament approved an emergency budget after a late-night vote. "
+            "Officials said the money will support hospitals and repair damaged public buildings. "
+            "The measure matters because local services were already under pressure before the vote. "
+            "This extra sentence should be trimmed away because the configured short-video limit is tight."
+        )
+
+        with (
+            patch.dict(
+                "app.services.llm.config.app",
+                {"news_script_min_words": 20, "news_script_max_words": 28},
+                clear=False,
+            ),
+            patch.object(llm, "_generate_response", return_value=response) as generate_mock,
+        ):
+            script = llm.generate_news_script(
+                video_subject="Write a short factual news voiceover",
+                language="en",
+                paragraph_number=2,
+                source_context={
+                    "title": "Parliament approves emergency budget",
+                    "summary": "Lawmakers approved an emergency budget after a late vote.",
+                    "source_url": "https://example.com/news/1",
+                    "keywords": ["budget", "parliament"],
+                },
+            )
+
+        prompt = generate_mock.call_args.kwargs["prompt"]
+        self.assertIn("Write in en", prompt)
+        self.assertIn("Parliament approves emergency budget", prompt)
+        self.assertIn("Stay strictly inside the supplied source facts", prompt)
+        self.assertNotIn("Anchor:", script)
+        self.assertLessEqual(len(script.split()), 28)
+
+    def test_generate_news_script_falls_back_to_source_context_on_llm_error(self):
+        with (
+            patch.dict(
+                "app.services.llm.config.app",
+                {"news_script_min_words": 20, "news_script_max_words": 35},
+                clear=False,
+            ),
+            patch.object(llm, "_generate_response", return_value="Error: quota exceeded"),
+        ):
+            script = llm.generate_news_script(
+                video_subject="Fallback subject",
+                source_context={
+                    "title": "Storm disrupts airport operations",
+                    "summary": "Flights were delayed after severe weather moved through the city.",
+                    "source_url": "https://example.com/storm",
+                },
+            )
+
+        self.assertIn("Storm disrupts airport operations", script)
+        self.assertIn("Flights were delayed", script)
+        self.assertNotIn("Error:", script)
+
 
     def test_azure_provider_uses_azure_client_directly(self):
         """

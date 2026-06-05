@@ -178,6 +178,40 @@ class TaskNewsHistoryTest(unittest.TestCase):
         self.assertTrue(summary["stock_fallback_used"])
         self.assertFalse(summary["ready_without_stock"])
 
+    def test_news_script_generation_uses_news_prompt_and_records_diagnostics(self):
+        story = NewsStory(
+            provider="guardian",
+            title="Parliament approves emergency budget",
+            summary="Lawmakers approved an emergency budget after a late vote.",
+            url="https://example.com/news/1",
+        )
+        params = self._params_for_story(story)
+        params.video_language = "en"
+        params.paragraph_number = 2
+
+        with mock.patch.object(
+            task.llm,
+            "generate_news_script",
+            return_value="Parliament approved an emergency budget after a late vote.",
+        ) as news_script_mock, mock.patch.object(
+            task.llm,
+            "generate_script",
+        ) as generic_script_mock:
+            script = task.generate_script("task-news-script", params)
+
+        self.assertEqual(
+            script, "Parliament approved an emergency budget after a late vote."
+        )
+        news_script_mock.assert_called_once()
+        generic_script_mock.assert_not_called()
+        diagnostics = news_diagnostics.get_task_diagnostics("task-news-script")
+        self.assertEqual(diagnostics[-1]["event"], "news_script_ready")
+        self.assertEqual(diagnostics[-1]["properties"]["language"], "en")
+        self.assertEqual(
+            diagnostics[-1]["properties"]["title"],
+            "Parliament approves emergency budget",
+        )
+
     def test_social_publish_preflight_reports_blocked_platforms(self):
         params = VideoParams(
             video_subject="News",

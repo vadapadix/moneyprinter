@@ -82,14 +82,18 @@ def _min_keyword_overlap(query_terms: set[str]) -> int:
             return max(1, int(configured))
         except (TypeError, ValueError):
             pass
-    return 1 if len(query_terms) <= 3 else 2
+    if len(query_terms) <= 3:
+        return 1
+    if len(query_terms) <= 5:
+        return 2
+    return 3
 
 
 def _min_keyword_coverage() -> float:
     try:
-        return max(0.0, float(config.app.get("news_ytdlp_min_keyword_coverage", 0.25)))
+        return max(0.0, float(config.app.get("news_ytdlp_min_keyword_coverage", 0.35)))
     except (TypeError, ValueError):
-        return 0.25
+        return 0.35
 
 
 def _entry_relevance(entry: dict, query: str) -> dict:
@@ -332,6 +336,10 @@ def _collect_downloaded_video_files(save_dir: str, known_paths: list[str]) -> li
     return sorted(candidates, key=lambda path: os.path.getmtime(path), reverse=True)
 
 
+def _list_video_files(save_dir: str) -> list[str]:
+    return _collect_downloaded_video_files(save_dir, [])
+
+
 def search_and_download_report(
     query: str,
     save_dir: str,
@@ -389,10 +397,12 @@ def search_and_download_report(
                     "skipped_relevance": [],
                     "error": "",
                 }
+                files_before_attempt = []
                 try:
                     if not hasattr(ydl, "params") or not isinstance(ydl.params, dict):
                         ydl.params = ydl_opts
                     ydl.params["match_filter"] = _make_relevance_match_filter(query, attempt)
+                    files_before_attempt = _list_video_files(save_dir)
                     info = ydl.extract_info(target, download=True)
                     for entry in _iter_entries(info):
                         relevance = _entry_relevance(entry, query)
@@ -410,8 +420,12 @@ def search_and_download_report(
                             break
                 except Exception as exc:
                     if _is_max_downloads_stop(exc):
+                        known_paths = [
+                            *downloaded,
+                            *files_before_attempt,
+                        ]
                         recovered_paths = _collect_downloaded_video_files(
-                            save_dir, downloaded
+                            save_dir, known_paths
                         )
                         for path in recovered_paths:
                             if len(downloaded) >= limit:

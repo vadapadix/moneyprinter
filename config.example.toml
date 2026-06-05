@@ -366,8 +366,8 @@ news_ytdlp_format = "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=
 news_ytdlp_try_source_url = true
 news_ytdlp_results_per_query = 3
 news_ytdlp_overfetch_multiplier = 3
-news_ytdlp_min_keyword_overlap = 2
-news_ytdlp_min_keyword_coverage = 0.25
+news_ytdlp_min_keyword_overlap = 3
+news_ytdlp_min_keyword_coverage = 0.35
 news_related_telegram_video_enabled = true
 news_related_telegram_video_search_limit = 6
 news_stock_fallback_source = "pexels"

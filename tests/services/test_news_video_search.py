@@ -359,7 +359,22 @@ class NewsVideoSearchTest(unittest.TestCase):
         self.assertTrue(result.paths[0].endswith("strong.mp4"))
         self.assertEqual(result.attempts[0]["skipped_irrelevant_count"], 1)
         self.assertEqual(result.attempts[0]["skipped_relevance"][0]["matched_terms"], ["market"])
-        self.assertEqual(result.attempts[0]["skipped_relevance"][0]["required_overlap"], 2)
+        self.assertEqual(result.attempts[0]["skipped_relevance"][0]["required_overlap"], 3)
+
+    def test_default_relevance_requires_three_terms_for_long_headline(self):
+        with mock.patch.dict(
+            "app.services.news_video_search.config.app",
+            {"news_ytdlp_min_keyword_overlap": None},
+            clear=False,
+        ):
+            relevance = news_video_search._entry_relevance(
+                {"title": "market reaction analysis"},
+                "central bank announces emergency rate decision market",
+            )
+
+        self.assertFalse(relevance["is_relevant"])
+        self.assertEqual(relevance["matched_terms"], ["market"])
+        self.assertEqual(relevance["required_overlap"], 3)
 
     def test_max_download_recovery_uses_relevance_filter_before_download(self):
         class FilteringMaxDownloadsYoutubeDL(FakeYoutubeDL):
@@ -407,6 +422,42 @@ class NewsVideoSearchTest(unittest.TestCase):
             result.attempts[0]["accepted_relevance"][0]["recovered_after"],
             "max_downloads",
         )
+
+    def test_max_download_recovery_ignores_files_from_previous_attempts(self):
+        calls = []
+
+        class StaleFileYoutubeDL(FakeYoutubeDL):
+            def __init__(self, options):
+                super().__init__(options)
+                self.params = options
+
+            def extract_info(self, target, download=True):
+                calls.append(target)
+                dirname = os.path.dirname(self.options["outtmpl"])
+                if len(calls) == 1:
+                    stale_path = os.path.join(dirname, "stale-unrelated-cooking.mp4")
+                    with open(stale_path, "wb") as handle:
+                        handle.write(b"wrong")
+                    return {"entries": []}
+
+                fresh_path = os.path.join(dirname, "major-news-headline-footage.mp4")
+                with open(fresh_path, "wb") as handle:
+                    handle.write(b"video")
+                raise Exception("Maximum number of downloads reached")
+
+        fake_module = types.SimpleNamespace(YoutubeDL=StaleFileYoutubeDL)
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            news_video_search.importlib, "import_module", return_value=fake_module
+        ):
+            result = news_video_search.search_and_download_report(
+                "major news headline",
+                save_dir=temp_dir,
+                limit=1,
+            )
+
+        self.assertEqual(len(result.paths), 1)
+        self.assertTrue(result.paths[0].endswith("major-news-headline-footage.mp4"))
+        self.assertFalse(any(path.endswith("stale-unrelated-cooking.mp4") for path in result.paths))
 
     def test_search_report_tries_web_video_pages_when_enabled(self):
         calls = []

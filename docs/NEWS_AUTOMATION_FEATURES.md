@@ -64,7 +64,7 @@ The target clip count is controlled by `news_min_clips`.
 
 For news tasks, `news_preserve_media_order = true` keeps direct news media, related Telegram clips, article videos, and `yt-dlp` footage ahead of stock fallback in the final edit. Stock clips are still allowed as filler, but they are not randomly shuffled in front of real news material.
 
-The `yt-dlp` stage records every attempted target in diagnostics, including downloaded counts, skipped weakly relevant entries, matched terms, keyword coverage, and target errors. The relevance gate is controlled by `news_ytdlp_min_keyword_overlap` and `news_ytdlp_min_keyword_coverage`; this makes it harder for a random popular video with only one weak word match to enter the final edit.
+The `yt-dlp` stage records every attempted target in diagnostics, including downloaded counts, skipped weakly relevant entries, matched terms, keyword coverage, and target errors. The relevance gate is controlled by `news_ytdlp_min_keyword_overlap` and `news_ytdlp_min_keyword_coverage`; this makes it harder for a random popular video with only one weak word match to enter the final edit. Long headlines now require a stronger default match, and max-download recovery only accepts files created during the current `yt-dlp` target attempt so stale clips from earlier failed targets cannot leak into the final edit.
 
 YouTube search overfetches candidates with `news_ytdlp_overfetch_multiplier` and then filters them by headline overlap. Each accepted clip records `accepted_relevance` with the matched headline terms and coverage, so diagnostics show why a video was allowed into the final edit instead of only showing failed candidates.
 

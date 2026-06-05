@@ -337,6 +337,63 @@ class NewsAutomationControllerTest(unittest.TestCase):
         self.assertEqual(result["selection_attempts"][0]["selected_count"], 0)
         self.assertEqual(result["selection_attempts"][1]["selected_count"], 1)
 
+    def test_prepare_news_run_falls_back_to_auto_sources_when_selected_source_is_exhausted(self):
+        used = NewsStory(
+            provider="telethon",
+            title="Already used story from selected source",
+            summary="Old summary",
+            url="https://t.me/demo/used",
+        )
+        fallback_fresh = NewsStory(
+            provider="guardian",
+            title="Fresh article from another source",
+            summary="A detailed new story from another provider with enough factual context.",
+            url="https://guardian.example/fresh",
+        )
+        calls = []
+
+        def fake_search(source, query):
+            calls.append((source, query.limit))
+            if source == "telethon":
+                return [used]
+            if source == "auto":
+                return [used, fallback_fresh]
+            return []
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            automation_service.news_history.utils,
+            "storage_dir",
+            lambda sub_dir="", create=False: temp_dir,
+        ), mock.patch.object(
+            automation_service.news_diagnostics.utils,
+            "storage_dir",
+            lambda sub_dir="", create=False: temp_dir,
+        ), mock.patch.dict(
+            "app.services.automation.config.app",
+            {
+                "news_story_fetch_multiplier": 3,
+                "news_unique_selection_max_fetch_multiplier": 3,
+                "news_unique_cross_source_fallback_enabled": True,
+            },
+            clear=False,
+        ), mock.patch.object(
+            automation_service.news_sources, "search", side_effect=fake_search
+        ), mock.patch.object(
+            automation_service.news_pipeline.web_media,
+            "discover_story_media",
+            return_value=[],
+        ):
+            automation_service.news_history.reserve_story(used, run_id="old-run")
+            result = automation_service.prepare_news_run(
+                NewsAutomationRunRequest(source="telethon", query="world", limit=1)
+            )
+
+        self.assertEqual(result["tasks"][0]["story"].title, fallback_fresh.title)
+        self.assertIn(("auto", 3), calls)
+        self.assertEqual(result["selection_attempts"][-1]["source"], "auto")
+        self.assertEqual(result["selection_attempts"][-1]["fallback_for"], "telethon")
+        self.assertEqual(result["selection_attempts"][-1]["selected_count"], 1)
+
     def test_prepare_news_run_ranks_richer_story_before_thin_story(self):
         thin = NewsStory(
             provider="newsdata",

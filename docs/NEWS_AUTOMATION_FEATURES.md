@@ -11,7 +11,7 @@ The default source is `auto`. In this mode the app searches every provider liste
 - `guardian`: Guardian Open Platform.
 - `telegram`: Telegram Bot API channels that the bot can read.
 
-Provider results are normalized to `NewsStory` objects with title, summary, source URL, publication date, keywords, and media assets. Auto mode gathers candidates from every configured provider before ranking, and duplicate URLs are removed before the automation queue is built.
+Provider results are normalized to `NewsStory` objects with title, summary, source URL, publication date, keywords, and media assets. Auto mode gathers candidates from every configured provider before ranking, logs and skips provider failures, and removes duplicate URLs before the automation queue is built.
 
 When `telegram_global_search = true`, Telethon does not use Telegram's premium-only global `SearchPostsRequest`. It scans accessible dialogs and joined channels instead, using `telegram_global_search_dialog_limit` and `telegram_recent_scan_limit`, so regular Telegram accounts can still find matching recent posts from sources the account can access.
 
@@ -21,7 +21,7 @@ Every queued story is reserved in `storage/news/history.json`. The primary key i
 
 Title signatures are Unicode-aware, so non-English sources such as Ukrainian Telegram posts are deduplicated by headline as well as URL. The selector also applies `news_title_similarity_threshold` to avoid queuing near-duplicate headlines in the same run or across previous runs.
 
-When the first fetched batch is mostly old/reserved stories, the automation increases the provider fetch limit in waves until it finds the requested number of unique articles or reaches `news_unique_selection_max_fetch_multiplier`. Each queued task receives the selection attempt summary in diagnostics, so a user can see whether the run stopped because the providers had no new stories or because the limit was reached.
+When the first fetched batch is mostly old/reserved stories, the automation increases the provider fetch limit in waves until it finds the requested number of unique articles or reaches `news_unique_selection_max_fetch_multiplier`. If a selected single source is exhausted, `news_unique_cross_source_fallback_enabled` lets the run fall back to `auto` and search the remaining configured providers for a fresh story. Each queued task receives the selection attempt summary in diagnostics, so a user can see whether the run stopped because the providers had no new stories or because the limit was reached.
 
 Story result status is updated after generation:
 

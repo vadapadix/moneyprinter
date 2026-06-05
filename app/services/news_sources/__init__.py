@@ -1,5 +1,6 @@
 from app.config import config
 from app.models.schema import NewsQueryRequest, NewsStory
+from loguru import logger
 
 
 DEFAULT_AUTO_SOURCES = ["telethon", "newsdata", "guardian", "telegram"]
@@ -53,7 +54,12 @@ def _search_auto(query: NewsQueryRequest) -> list[NewsStory]:
     per_source_limit = max(1, query.limit)
     for source in _configured_auto_sources():
         source_query = query.model_copy(update={"source": source, "limit": per_source_limit})
-        for story in search(source, source_query):
+        try:
+            source_stories = search(source, source_query)
+        except Exception as exc:
+            logger.warning(f"news auto source failed: {source}, error: {exc}")
+            continue
+        for story in source_stories:
             key = _story_identity(story)
             if key in seen:
                 continue

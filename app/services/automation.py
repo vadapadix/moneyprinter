@@ -183,6 +183,7 @@ def _unique_selection_attempts(
         )
         attempts.append(
             {
+                "source": source,
                 "fetch_limit": fetch_limit,
                 "raw_found_count": len(stories),
                 "unique_found_count": len(stories_by_key),
@@ -193,6 +194,37 @@ def _unique_selection_attempts(
         if len(selected_stories) >= requested_limit:
             break
         multiplier *= 2
+
+    cross_source_fallback_enabled = bool(
+        config.app.get("news_unique_cross_source_fallback_enabled", True)
+    )
+    if (
+        cross_source_fallback_enabled
+        and len(selected_stories) < requested_limit
+        and source not in ("auto", "config")
+    ):
+        fallback_limit = max(requested_limit * max_multiplier, requested_limit)
+        fallback_query = query.model_copy(
+            update={"source": "auto", "limit": fallback_limit}
+        )
+        fallback_stories = news_sources.search("auto", fallback_query)
+        for story in fallback_stories:
+            stories_by_key.setdefault(news_history.story_key(story), story)
+
+        ranked_stories = news_story_quality.rank_stories(stories_by_key.values())
+        selected_stories = news_history.filter_new_stories(
+            [item.story for item in ranked_stories], requested_limit
+        )
+        attempts.append(
+            {
+                "source": "auto",
+                "fallback_for": source,
+                "fetch_limit": fallback_limit,
+                "raw_found_count": len(fallback_stories),
+                "unique_found_count": len(stories_by_key),
+                "selected_count": len(selected_stories),
+            }
+        )
 
     ranked_payload = [
         {

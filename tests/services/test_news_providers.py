@@ -188,6 +188,42 @@ class NewsProviderTest(unittest.TestCase):
             ["Used one", "Used two", "Fresh from second source"],
         )
 
+    def test_auto_source_continues_when_one_provider_fails(self):
+        class FailingProvider:
+            def search(self, query):
+                raise RuntimeError("provider offline")
+
+        class WorkingProvider:
+            def search(self, query):
+                return [
+                    news_sources.NewsStory(
+                        provider="guardian",
+                        title="Fresh story after provider failure",
+                        url="https://guardian.example/fresh",
+                    )
+                ]
+
+        providers = {
+            "telethon": FailingProvider(),
+            "guardian": WorkingProvider(),
+        }
+
+        with mock.patch.dict(
+            "app.services.news_sources.config.app",
+            {"news_auto_sources": ["telethon", "guardian"]},
+            clear=False,
+        ), mock.patch.object(
+            news_sources, "get_provider", lambda source: providers.get(source)
+        ):
+            stories = news_sources.search(
+                "auto", NewsQueryRequest(source="auto", query="world", limit=2)
+            )
+
+        self.assertEqual(
+            [story.title for story in stories],
+            ["Fresh story after provider failure"],
+        )
+
     def test_telethon_query_matching_handles_non_latin_text(self):
         message = mock.Mock(message="Українська новина про енергетику та безпеку")
 

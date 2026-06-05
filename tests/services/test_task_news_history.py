@@ -288,6 +288,31 @@ class TaskNewsHistoryTest(unittest.TestCase):
         self.assertEqual(summary["skipped_platforms"], [])
         self.assertEqual(privacy.value, "private")
 
+    def test_social_publish_preflight_falls_back_to_tiktok_api_when_browser_assist_disabled(self):
+        params = VideoParams(
+            video_subject="News",
+            social_auto_publish=True,
+            social_platforms=[SocialPlatform.tiktok],
+            tiktok_direct_post_consent=True,
+        )
+
+        with mock.patch.dict(
+            "app.services.task.config.app",
+            {
+                "tiktok_publish_mode": "browser_assist",
+                "tiktok_browser_upload_enabled": False,
+                "tiktok_upload_enabled": True,
+                "social_privacy": "private",
+            },
+            clear=False,
+        ):
+            summary, privacy = task._social_publish_preflight(params)
+
+        self.assertEqual(summary["enabled_platforms"], ["tiktok"])
+        self.assertEqual(summary.get("manual_review_platforms"), None)
+        self.assertEqual(summary["skipped_platforms"], [])
+        self.assertEqual(privacy.value, "private")
+
     def test_social_publish_status_reports_skipped_disabled_publish(self):
         status = task._social_publish_status(
             {

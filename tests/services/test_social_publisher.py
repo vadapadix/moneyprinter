@@ -31,6 +31,20 @@ class SocialPublisherTest(unittest.TestCase):
 
         self.assertIsInstance(publisher, TikTokBrowserPublisher)
 
+    def test_get_publisher_falls_back_to_tiktok_api_when_browser_assist_disabled(self):
+        with mock.patch.dict(
+            "app.services.social_publisher.config.app",
+            {
+                "tiktok_publish_mode": "browser_assist",
+                "tiktok_browser_upload_enabled": False,
+                "tiktok_upload_enabled": True,
+            },
+            clear=False,
+        ):
+            publisher = social_publisher.get_publisher("tiktok")
+
+        self.assertIsInstance(publisher, TikTokPublisher)
+
     def test_publish_existing_task_normalizes_unknown_metadata_from_news_context(self):
         publisher = mock.Mock()
         publisher.publish.return_value = PublishResult(

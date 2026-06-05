@@ -1,6 +1,7 @@
 import json
 import locale
 import os
+import shutil
 from pathlib import Path
 import threading
 from typing import Any
@@ -117,6 +118,27 @@ def public_dir(sub_dir: str = ""):
     if not os.path.exists(d):
         os.makedirs(d)
     return d
+
+
+def get_ffmpeg_binary() -> str:
+    configured_ffmpeg = os.environ.get("IMAGEIO_FFMPEG_EXE")
+    if configured_ffmpeg:
+        return configured_ffmpeg
+
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg:
+        return system_ffmpeg
+
+    try:
+        import imageio_ffmpeg
+
+        bundled_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        if bundled_ffmpeg:
+            return bundled_ffmpeg
+    except Exception as exc:
+        logger.warning(f"failed to resolve bundled ffmpeg binary: {str(exc)}")
+
+    return "ffmpeg"
 
 
 def run_in_background(func, *args, **kwargs):

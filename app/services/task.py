@@ -591,20 +591,21 @@ def _social_publish_preflight(params: VideoParams) -> tuple[dict, PublishPrivacy
             continue
         if platform == "tiktok":
             tiktok_mode = str(config.app.get("tiktok_publish_mode", "api"))
-            if tiktok_mode == "browser_assist":
-                if not config.app.get("tiktok_browser_upload_enabled", False):
-                    summary["skipped_platforms"].append(
-                        {
-                            "platform": platform,
-                            "reason": "tiktok_browser_upload_disabled",
-                        }
-                    )
-                    continue
+            tiktok_browser_enabled = bool(
+                config.app.get("tiktok_browser_upload_enabled", False)
+            )
+            tiktok_api_enabled = bool(config.app.get("tiktok_upload_enabled", False))
+            if tiktok_mode == "browser_assist" and tiktok_browser_enabled:
                 summary.setdefault("manual_review_platforms", []).append(platform)
             else:
-                if not config.app.get("tiktok_upload_enabled", False):
+                if not tiktok_api_enabled:
+                    reason = (
+                        "tiktok_browser_upload_disabled"
+                        if tiktok_mode == "browser_assist"
+                        else "tiktok_upload_disabled"
+                    )
                     summary["skipped_platforms"].append(
-                        {"platform": platform, "reason": "tiktok_upload_disabled"}
+                        {"platform": platform, "reason": reason}
                     )
                     continue
                 if not params.tiktok_direct_post_consent:

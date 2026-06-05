@@ -23,6 +23,17 @@ def get_publisher(platform: str):
     if platform == "youtube":
         return YouTubeShortsPublisher()
     if platform == "tiktok":
+        browser_assist_enabled = bool(
+            config.app.get("tiktok_browser_upload_enabled", False)
+        )
+        api_enabled = bool(config.app.get("tiktok_upload_enabled", False))
+        if (
+            config.app.get("tiktok_publish_mode", "api") == "browser_assist"
+            and browser_assist_enabled
+        ):
+            return TikTokBrowserPublisher()
+        if api_enabled:
+            return TikTokPublisher()
         if config.app.get("tiktok_publish_mode", "api") == "browser_assist":
             return TikTokBrowserPublisher()
         return TikTokPublisher()

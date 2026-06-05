@@ -252,6 +252,8 @@ script: {video_script}
 
     try:
         payload = _extract_json_object(response)
+        if "category_id" in payload and payload["category_id"] is not None:
+            payload["category_id"] = str(payload["category_id"])
         metadata = SocialMetadata(**payload)
         return normalize_metadata(metadata, default_title=default_title or video_subject)
     except Exception as exc:

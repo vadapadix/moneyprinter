@@ -94,6 +94,33 @@ class SocialMetadataTest(unittest.TestCase):
         self.assertIn("#Shorts", result.description)
         self.assertEqual(result.platform_captions["tiktok"], "A concise update #News")
 
+    def test_numeric_category_id_from_llm_is_coerced_to_string(self):
+        def fake_generate_response(prompt):
+            return """
+            {
+                "title": "Budget vote explained",
+                "description": "A concise sourced update. #Shorts",
+                "hashtags": ["#News", "#Shorts"],
+                "youtube_tags": ["News", "Budget"],
+                "category_id": 28,
+                "contains_synthetic_media": true,
+                "platform_captions": {
+                    "tiktok": "Budget vote explained #News #Shorts"
+                }
+            }
+            """
+
+        with mock.patch.object(
+            social_metadata.llm, "_generate_response", fake_generate_response
+        ):
+            result = social_metadata.generate_social_metadata(
+                video_subject="Budget vote",
+                video_script="Lawmakers approved an emergency budget.",
+            )
+
+        self.assertEqual(result.category_id, "28")
+        self.assertEqual(result.title, "Budget vote explained")
+
     def test_error_response_fallback_uses_source_context(self):
         with mock.patch.object(
             social_metadata.llm,

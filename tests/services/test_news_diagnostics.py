@@ -53,6 +53,21 @@ class NewsDiagnosticsTest(unittest.TestCase):
                     "source": "pexels",
                     "downloaded_count": 1,
                     "total_video_count": 3,
+                    "downloaded_paths": ["stock.mp4"],
+                },
+            },
+            {
+                "event": "news_material_mix_ready",
+                "properties": {
+                    "non_stock_video_count": 2,
+                    "stock_video_count": 1,
+                    "total_video_count": 3,
+                    "non_stock_paths": ["telegram.mp4", "yt.mp4"],
+                    "stock_paths": ["stock.mp4"],
+                    "stock_fallback_used": True,
+                    "ready_without_stock": False,
+                    "preserved_order": True,
+                    "required_clip_count": 3,
                 },
             },
         ]
@@ -62,10 +77,41 @@ class NewsDiagnosticsTest(unittest.TestCase):
         self.assertEqual(summary["status"], "news_media_ready")
         self.assertEqual(summary["total_video_count"], 3)
         self.assertEqual(summary["non_stock_video_count"], 2)
+        self.assertEqual(summary["stock_video_count"], 1)
         self.assertTrue(summary["stock_fallback_used"])
+        self.assertFalse(summary["ready_without_stock"])
+        self.assertEqual(summary["non_stock_paths"], ["telegram.mp4", "yt.mp4"])
+        self.assertEqual(summary["stock_paths"], ["stock.mp4"])
+        self.assertEqual(summary["material_order"], "non_stock_before_stock")
         self.assertEqual(summary["used_sources"], ["telethon", "yt-dlp", "pexels"])
         self.assertEqual(summary["stages"][1]["attempt_count"], 2)
         self.assertEqual(summary["stages"][1]["skipped_relevance_count"], 1)
+
+    def test_media_summary_marks_ready_without_stock(self):
+        summary = news_diagnostics.media_summary_from_events(
+            [
+                {
+                    "event": "news_material_mix_ready",
+                    "properties": {
+                        "non_stock_video_count": 3,
+                        "stock_video_count": 0,
+                        "total_video_count": 3,
+                        "non_stock_paths": ["a.mp4", "b.mp4", "c.mp4"],
+                        "stock_paths": [],
+                        "stock_fallback_used": False,
+                        "ready_without_stock": True,
+                        "preserved_order": True,
+                        "required_clip_count": 3,
+                    },
+                }
+            ]
+        )
+
+        self.assertEqual(summary["status"], "news_media_ready")
+        self.assertEqual(summary["stock_video_count"], 0)
+        self.assertFalse(summary["stock_fallback_used"])
+        self.assertTrue(summary["ready_without_stock"])
+        self.assertEqual(summary["material_order"], "non_stock_only")
 
 
 if __name__ == "__main__":

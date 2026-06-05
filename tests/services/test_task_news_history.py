@@ -126,8 +126,57 @@ class TaskNewsHistoryTest(unittest.TestCase):
             [
                 "news_related_telegram_search_started",
                 "news_related_telegram_search_completed",
+                "news_material_mix_ready",
             ],
         )
+
+    def test_news_materials_report_non_stock_before_stock_fallback(self):
+        story = NewsStory(
+            provider="guardian",
+            title="Floods force evacuations across coastal city",
+            summary="Officials ordered evacuations after heavy rain flooded roads.",
+            url="https://example.com/news/floods",
+        )
+        params = self._params_for_story(story)
+        related_path = f"{self.temp_dir.name}/related.mp4"
+        stock_path = f"{self.temp_dir.name}/stock.mp4"
+        for path in (related_path, stock_path):
+            with open(path, "wb") as handle:
+                handle.write(b"video")
+
+        with mock.patch.dict(
+            "app.services.task.config.app",
+            {"news_min_clips": 2, "news_stock_fallback_source": "pexels"},
+            clear=False,
+        ), mock.patch.object(
+            task.news_pipeline,
+            "discover_related_telegram_video_materials",
+            return_value=[MaterialInfo(provider="telethon", url=related_path, duration=8)],
+        ), mock.patch.object(
+            task.news_video_search,
+            "search_and_download_report",
+            return_value=mock.Mock(paths=[], attempts=[]),
+        ), mock.patch.object(
+            task.material,
+            "download_videos",
+            return_value=[stock_path],
+        ):
+            videos = task.get_video_materials(
+                "task-mix",
+                params,
+                video_terms=["coastal flood evacuation"],
+                audio_duration=30,
+            )
+
+        self.assertEqual(videos, [related_path, stock_path])
+        summary = news_diagnostics.get_media_summary("task-mix")
+        self.assertEqual(summary["non_stock_paths"], [related_path])
+        self.assertEqual(summary["stock_paths"], [stock_path])
+        self.assertEqual(summary["stock_video_count"], 1)
+        self.assertEqual(summary["stock_needed_count"], 1)
+        self.assertEqual(summary["material_order"], "non_stock_before_stock")
+        self.assertTrue(summary["stock_fallback_used"])
+        self.assertFalse(summary["ready_without_stock"])
 
     def test_social_publish_preflight_reports_blocked_platforms(self):
         params = VideoParams(

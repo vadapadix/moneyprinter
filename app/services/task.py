@@ -264,6 +264,22 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
 
 
 def get_video_materials(task_id, params, video_terms, audio_duration):
+    def record_news_material_mix(non_stock_paths, stock_paths=None):
+        stock_paths = stock_paths or []
+        news_diagnostics.record_event(
+            task_id,
+            "news_material_mix_ready",
+            non_stock_video_count=len(non_stock_paths),
+            stock_video_count=len(stock_paths),
+            total_video_count=len(non_stock_paths) + len(stock_paths),
+            non_stock_paths=non_stock_paths,
+            stock_paths=stock_paths,
+            stock_fallback_used=bool(stock_paths),
+            required_clip_count=min_news_clips,
+            ready_without_stock=len(non_stock_paths) >= min_news_clips,
+            preserved_order=True,
+        )
+
     if params.video_source == "local":
         logger.info("\n\n## preprocess local materials")
         materials = video.preprocess_video(
@@ -297,7 +313,9 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
                 direct_video_count=len(video_paths),
                 required_clip_count=min_news_clips,
                 source="news_assets",
+                downloaded_paths=video_paths,
             )
+            record_news_material_mix(video_paths)
             return video_paths
 
         search_query = (
@@ -335,6 +353,7 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             downloaded_paths=related_paths,
         )
         if len(video_paths) >= min_news_clips:
+            record_news_material_mix(video_paths)
             return video_paths
 
         news_diagnostics.record_event(
@@ -364,9 +383,11 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             attempts=ytdlp_result.attempts,
         )
         if len(video_paths) >= min_news_clips:
+            record_news_material_mix(video_paths)
             return video_paths
 
         fallback_source = config.app.get("news_stock_fallback_source", "pexels")
+        stock_needed_count = max(0, min_news_clips - len(video_paths))
         logger.info(
             f"adding {fallback_source} stock fallback clips after {len(video_paths)} direct news clips"
         )
@@ -375,6 +396,9 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
             "news_stock_fallback_started",
             source=fallback_source,
             existing_video_count=len(video_paths),
+            existing_non_stock_video_count=len(video_paths),
+            needed_count=stock_needed_count,
+            required_clip_count=min_news_clips,
             search_terms=video_terms or [params.video_subject],
         )
         downloaded_videos = material.download_videos(
@@ -388,18 +412,22 @@ def get_video_materials(task_id, params, video_terms, audio_duration):
         )
         if not downloaded_videos:
             if video_paths:
+                record_news_material_mix(video_paths)
                 return video_paths
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
             logger.error("failed to download fallback videos for news story")
             return None
+        final_video_paths = video_paths + downloaded_videos
         news_diagnostics.record_event(
             task_id,
             "news_stock_fallback_completed",
             source=fallback_source,
             downloaded_count=len(downloaded_videos),
-            total_video_count=len(video_paths) + len(downloaded_videos),
+            total_video_count=len(final_video_paths),
+            downloaded_paths=downloaded_videos,
         )
-        return video_paths + downloaded_videos
+        record_news_material_mix(video_paths, downloaded_videos)
+        return final_video_paths
     else:
         logger.info(f"\n\n## downloading videos from {params.video_source}")
         downloaded_videos = material.download_videos(

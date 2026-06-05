@@ -98,10 +98,15 @@ def media_summary_from_events(events: list[dict]) -> dict:
             "attempted": False,
             "downloaded_count": 0,
             "paths": [],
+            "needed_count": 0,
+            "existing_non_stock_video_count": 0,
         },
     }
     required_clip_count = 0
     total_video_count = 0
+    non_stock_paths: list[str] = []
+    stock_paths: list[str] = []
+    material_mix: dict[str, Any] = {}
 
     for event in events or []:
         event_name = event.get("event")
@@ -110,6 +115,7 @@ def media_summary_from_events(events: list[dict]) -> dict:
             stage = stages["direct_news_media"]
             stage["attempted"] = True
             stage["downloaded_count"] = int(properties.get("direct_video_count") or 0)
+            stage["paths"] = properties.get("downloaded_paths") or []
             stage["source"] = properties.get("source") or stage["source"]
             required_clip_count = max(
                 required_clip_count, int(properties.get("required_clip_count") or 0)
@@ -156,6 +162,15 @@ def media_summary_from_events(events: list[dict]) -> dict:
             stage["attempted"] = True
             stage["source"] = properties.get("source") or stage["source"]
             stage["search_terms"] = properties.get("search_terms") or []
+            stage["needed_count"] = int(properties.get("needed_count") or 0)
+            stage["existing_non_stock_video_count"] = int(
+                properties.get("existing_non_stock_video_count")
+                or properties.get("existing_video_count")
+                or 0
+            )
+            required_clip_count = max(
+                required_clip_count, int(properties.get("required_clip_count") or 0)
+            )
             total_video_count = max(
                 total_video_count, int(properties.get("existing_video_count") or 0)
             )
@@ -164,24 +179,64 @@ def media_summary_from_events(events: list[dict]) -> dict:
             stage["attempted"] = True
             stage["source"] = properties.get("source") or stage["source"]
             stage["downloaded_count"] = int(properties.get("downloaded_count") or 0)
+            stage["paths"] = properties.get("downloaded_paths") or []
             total_video_count = max(
                 total_video_count, int(properties.get("total_video_count") or 0)
             )
+        elif event_name == "news_material_mix_ready":
+            material_mix = {
+                "non_stock_video_count": int(
+                    properties.get("non_stock_video_count") or 0
+                ),
+                "stock_video_count": int(properties.get("stock_video_count") or 0),
+                "total_video_count": int(properties.get("total_video_count") or 0),
+                "non_stock_paths": properties.get("non_stock_paths") or [],
+                "stock_paths": properties.get("stock_paths") or [],
+                "stock_fallback_used": bool(properties.get("stock_fallback_used")),
+                "ready_without_stock": bool(properties.get("ready_without_stock")),
+                "preserved_order": bool(properties.get("preserved_order")),
+            }
+            non_stock_paths = material_mix["non_stock_paths"]
+            stock_paths = material_mix["stock_paths"]
+            required_clip_count = max(
+                required_clip_count, int(properties.get("required_clip_count") or 0)
+            )
+            total_video_count = max(total_video_count, material_mix["total_video_count"])
 
     stage_list = [stage for stage in stages.values() if stage["attempted"]]
     non_stock_count = sum(
         stage["downloaded_count"] for stage in stage_list if stage["stage"] != "stock_fallback"
+    )
+    if material_mix:
+        non_stock_count = material_mix["non_stock_video_count"]
+    if not non_stock_paths:
+        for stage in stage_list:
+            if stage["stage"] != "stock_fallback":
+                non_stock_paths.extend(stage.get("paths") or [])
+    if not stock_paths:
+        stock_paths = stages["stock_fallback"].get("paths") or []
+    stock_video_count = (
+        material_mix["stock_video_count"]
+        if material_mix
+        else int(stages["stock_fallback"].get("downloaded_count") or 0)
     )
     used_sources = [
         stage["source"]
         for stage in stage_list
         if stage["downloaded_count"] > 0 and stage.get("source")
     ]
-    stock_fallback_used = any(
-        stage["stage"] == "stock_fallback" and stage["attempted"] for stage in stage_list
+    stock_fallback_used = bool(
+        material_mix.get("stock_fallback_used")
+        if material_mix
+        else any(
+            stage["stage"] == "stock_fallback" and stage["attempted"]
+            for stage in stage_list
+        )
     )
     if not total_video_count:
         total_video_count = sum(stage["downloaded_count"] for stage in stage_list)
+    if material_mix and material_mix["total_video_count"]:
+        total_video_count = material_mix["total_video_count"]
     if non_stock_count:
         status = "news_media_ready"
     elif total_video_count:
@@ -193,7 +248,17 @@ def media_summary_from_events(events: list[dict]) -> dict:
         "status": status,
         "total_video_count": total_video_count,
         "non_stock_video_count": non_stock_count,
+        "stock_video_count": stock_video_count,
         "stock_fallback_used": stock_fallback_used,
+        "ready_without_stock": bool(
+            material_mix.get("ready_without_stock")
+            if material_mix
+            else required_clip_count and non_stock_count >= required_clip_count
+        ),
+        "stock_needed_count": int(stages["stock_fallback"].get("needed_count") or 0),
+        "non_stock_paths": non_stock_paths,
+        "stock_paths": stock_paths,
+        "material_order": "non_stock_before_stock" if stock_paths else "non_stock_only",
         "used_sources": used_sources,
         "required_clip_count": required_clip_count,
         "stages": stage_list,
